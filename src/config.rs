@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+
 use serde::{Deserialize};
 
 const DEFAULT_CONFIG_FILE: &str = "./config.yaml";
@@ -12,10 +13,9 @@ pub struct Config {
 
 #[derive(Debug, Deserialize)]
 pub struct WebConfig {
-    pub port: u64,
+    pub port: u16,
     pub host: String
 }
-
 
 impl Config {
     pub fn init() -> Result<Self, ConfigError> {

@@ -1,60 +1,37 @@
-use actix::{Actor, StreamHandler};
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
-use actix_web_actors::ws;
-
 use tracing::{event, span, Level};
 use tracing_subscriber;
+
+use warp::Filter;
 
 mod config;
 use config::Config;
 
-mod oven_control;
+mod kiln_control;
+mod server;
+use server::Manager;
 
-struct Websocket;
-
-impl Actor for Websocket {
-    type Context = ws::WebsocketContext<Self>;
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Websocket {
-    fn handle(
-        &mut self,
-        msg: Result<ws::Message, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
-        match msg {
-            Ok(ws::Message::Ping(msg)) => {
-                event!(Level::INFO, "ping");
-                ctx.pong(&msg)
-            },
-            Ok(ws::Message::Text(text)) => {
-                event!(Level::INFO, "recieved message");
-                ctx.text(text)
-            },
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
-            _ => (),
-        }
-    }
-}
-
-async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    ws::start(Websocket {}, &req, stream)
-}
-
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
 
     let conf = Config::init().unwrap(); // TODO: Remove unwrap
+    
+    event!(Level::DEBUG, "system started");
 
-    let span = span!(Level::INFO, "my_span");
-    let _guard = span.enter();
+    let manager = Manager::start();
+    let manager = warp::any().map(move || manager.clone());
 
-    event!(Level::TRACE, process = oven_control::fuzzy().to_string().as_str());
-    event!(Level::TRACE, process = oven_control::proportional().to_string().as_str());
+    let ws = warp::path("ws")
+        .and(warp::ws())
+        .and(manager)
+        .map(|ws: warp::ws::Ws, manager: Manager| {
+            ws.on_upgrade(move |socket| manager.on_connect(socket))
+        });
 
-    HttpServer::new(|| App::new().route("/status", web::get().to(index)))
-        .bind(format!("{host}:{port}", host=conf.web.host, port=conf.web.port))?
-        .run()
-        .await
+    warp::serve(ws)
+        .run(([127, 0, 0, 1], conf.web.port))
+        .await;
+
+    Ok(())
 }
+

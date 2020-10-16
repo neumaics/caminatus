@@ -2,7 +2,7 @@ use rsfuzzy::*;
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-/// Ripped off by
+/// Ripped off from
 ///   https://github.com/auseckas/rsfuzzy
 pub fn fuzzy() -> f32 {
     let mut f_engine = rsfuzzy::Engine::new();
@@ -57,6 +57,7 @@ pub fn fuzzy() -> f32 {
     result
 }
 
+#[derive(Debug)]
 struct PID {
     k_i: f32,
     k_p: f32,
@@ -107,4 +108,9 @@ impl PID {
 
 pub fn proportional() -> f32 {
     PID::init(1.0, 2.0, 3.0).compute(1.1, 204.2)
+}
+
+#[test]
+fn name() {
+    unimplemented!();
 }
