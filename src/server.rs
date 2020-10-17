@@ -1,23 +1,18 @@
 
 use std::time::{Duration};
 
-// use uuid::Uuid;
-// use bytes::Bytes;
-
-use tokio::sync::{watch, mpsc, oneshot};
+use tokio::sync::{watch, mpsc};
 use tokio::time;
 
 use futures::{FutureExt, StreamExt};
-use warp::ws::{Message, WebSocket};
-
-use serde::{Deserialize, Serialize};
-use serde_json::Result;
+use warp::ws::{WebSocket};
 
 use tracing::{debug, info};
 
 use crate::config::Config;
 
-// type OneshotResponder<T> = oneshot::Sender<Result<T, warp::Error>>;
+mod command;
+use command::Command;
 
 #[derive(Debug, Clone)]
 struct Monitor {
@@ -45,27 +40,12 @@ impl Monitor {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-enum Command {
-    Subscribe {
-        channel: String,
-    },
-
-    Unsubscribe {
-        channel: String,
-    },
-
-    Unknown {
-        input: String
-    },
-}
 
 #[derive(Debug, Clone)]
 pub struct Manager {
     monitor_service: Monitor,
     sender: tokio::sync::mpsc::Sender<Command>
 }
-
 
 impl Manager {
     pub fn start(config: &Config) -> Manager {
@@ -130,14 +110,8 @@ impl Manager {
                         break;
                     }
                 };
-    
-                let command: Command = match serde_json::from_str(message.to_str().unwrap()) {
-                    Ok(command) => command,
-                    Err(error) => {
-                        debug!("{:?}", error);
-                        Command::Unknown { input: message.to_str().unwrap().to_string() }
-                    }
-                };
+                
+                let command: Command = Command::from(message.to_str().unwrap());
 
                 let _ = copy2.sender.send(command).await;
             }
