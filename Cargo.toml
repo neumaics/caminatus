@@ -3,6 +3,7 @@ name = "caminatus"
 version = "0.0.0"
 authors = ["Brian <neumaics@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,11 +11,15 @@ edition = "2018"
 bytes = "0.5"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 rsfuzzy = { git = "https://github.com/auseckas/rsfuzzy" }
-rppal = "0.11.3"
 tokio = { version = "0.2", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
+serde_json = "1.0"
+
 uuid = { version = "0.8", features = ["serde", "v4"] }
 warp = { version = "0.2", features = ["default"] }
+
+[target.'armv7-unknown-linux-gnueabihf'.dependencies]
+rppal = "0.11.3"

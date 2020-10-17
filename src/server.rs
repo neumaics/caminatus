@@ -1,8 +1,8 @@
 
 use std::time::{Duration};
 
-use uuid::Uuid;
-use bytes::Bytes;
+// use uuid::Uuid;
+// use bytes::Bytes;
 
 use tokio::sync::{watch, mpsc, oneshot};
 use tokio::time;
@@ -10,21 +10,28 @@ use tokio::time;
 use futures::{FutureExt, StreamExt};
 use warp::ws::{Message, WebSocket};
 
+use serde::{Deserialize, Serialize};
+use serde_json::Result;
+
 use tracing::{debug, info};
 
-type OneshotResponder<T> = oneshot::Sender<Result<T, warp::Error>>;
+use crate::config::Config;
+
+// type OneshotResponder<T> = oneshot::Sender<Result<T, warp::Error>>;
 
 #[derive(Debug, Clone)]
 struct Monitor {
+    pub name: &'static str,
     pub receiver: tokio::sync::watch::Receiver<&'static str>
 }
 
 impl Monitor {
-    fn start() -> Monitor {
-        let (status_tx, status_rx) = watch::channel("status");
+    fn start(interval: u32) -> Monitor {
+        let name = "status";
+        let (status_tx, status_rx) = watch::channel(name);
 
         tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(10000));
+            let mut interval = time::interval(Duration::from_millis(interval as u64));
 
             while let _ = interval.tick().await {
                 let _ = status_tx.broadcast("beep");
@@ -32,16 +39,24 @@ impl Monitor {
         });
 
         Monitor {
+            name: name,
             receiver: status_rx
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 enum Command {
     Subscribe {
         channel: String,
-        responder: OneshotResponder<Bytes>,
+    },
+
+    Unsubscribe {
+        channel: String,
+    },
+
+    Unknown {
+        input: String
     },
 }
 
@@ -53,15 +68,22 @@ pub struct Manager {
 
 
 impl Manager {
-    pub fn start() -> Manager {
+    pub fn start(config: &Config) -> Manager {
         let (m_tx, mut m_rx) = mpsc::channel(16);
     
         tokio::spawn(async move {
             while let Some(command) = m_rx.recv().await {
                 match command {
-                    Command::Subscribe { channel, responder } => {
+                    Command::Subscribe { channel } => {
+                        info!("subscribing to channel {}", channel);
                         //event!(Level::DEBUG, channel=channel.as_str(), "subscribing to channel");
-                        let _ = responder.send(Ok(Bytes::from(Uuid::new_v4().to_string())));
+                        // let _ = responder.send(Ok(Bytes::from(Uuid::new_v4().to_string())));
+                    },
+                    Command::Unsubscribe { channel } => {
+                        info!("unsubscribing to channel {}", channel);
+                    },
+                    Command::Unknown { input } => {
+                        info!("unknown command received {}", input);
                     }
                 }
             }
@@ -69,13 +91,17 @@ impl Manager {
 
         Manager {
             sender: m_tx,
-            monitor_service: Monitor::start()
+            monitor_service: Monitor::start(config.poll_interval)
         }
     }
 
     pub async fn on_connect(self, ws: WebSocket) {
         let (user_ws_tx, mut user_ws_rx) = ws.split();
-        let mut monitor = self.monitor_service.receiver.clone();
+        let copy1 = self.clone();
+        let mut copy2 = self.clone();
+        let copy3 = self.clone();
+        let mut monitor = copy1.monitor_service.receiver.clone();
+
         info!("client connecting");
 
         let (tx, rx) = mpsc::unbounded_channel();
@@ -86,16 +112,17 @@ impl Manager {
             }
         }));
     
-        tokio::task::spawn(async move { 
-            while let Some(result) = monitor.recv().await {
-                let _ = tx.send(Ok(Message::text(result)));
-            }
+        // tokio::task::spawn(async move { 
+        //     while let Some(result) = monitor.recv().await {
+        //         let _ = tx.send(Ok(Message::text(result)));
+        //     }
 
-            self.on_disconnect()
-        });
+        //     copy1.on_disconnect()
+        // });
 
         tokio::task::spawn(async move {
             while let Some(result) = user_ws_rx.next().await {
+                debug!("{:?}", result);
                 let message = match result {
                     Ok(message) => message,
                     Err(error) => {
@@ -104,10 +131,18 @@ impl Manager {
                     }
                 };
     
-                debug!("{:?}", message);
+                let command: Command = match serde_json::from_str(message.to_str().unwrap()) {
+                    Ok(command) => command,
+                    Err(error) => {
+                        debug!("{:?}", error);
+                        Command::Unknown { input: message.to_str().unwrap().to_string() }
+                    }
+                };
+
+                let _ = copy2.sender.send(command).await;
             }
 
-            // self.on_disconnect()
+            let _ = copy3.on_disconnect();
         });
     }
 

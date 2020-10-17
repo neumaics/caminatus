@@ -1,4 +1,4 @@
-use tracing::{event, span, Level};
+use tracing::{event, Level};
 use tracing_subscriber;
 
 use warp::Filter;
@@ -6,7 +6,6 @@ use warp::Filter;
 mod config;
 use config::Config;
 
-mod kiln_control;
 mod server;
 use server::Manager;
 
@@ -18,7 +17,7 @@ async fn main() -> std::io::Result<()> {
     
     event!(Level::DEBUG, "system started");
 
-    let manager = Manager::start();
+    let manager = Manager::start(&conf);
     let manager = warp::any().map(move || manager.clone());
 
     let ws = warp::path("ws")
@@ -28,10 +27,15 @@ async fn main() -> std::io::Result<()> {
             ws.on_upgrade(move |socket| manager.on_connect(socket))
         });
 
-    warp::serve(ws)
+    // let public = warp::path::end()
+    let public = warp::path("public")
+        .and(warp::fs::dir("public"));
+
+    let routes = ws.or(public);
+
+    warp::serve(routes)
         .run(([127, 0, 0, 1], conf.web.port))
         .await;
-
+    
     Ok(())
 }
-
