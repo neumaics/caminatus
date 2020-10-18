@@ -4,7 +4,10 @@ web:
     host: "127.0.0.1"
 
 # In seconds
-poll_interval: 1000
+poll_interval: 10000
+
+# The i2c address for the MCP960X
+thermocouple_address: 0x67
 
 gpio:
-    thermocouple: 6
+    heater: 12
