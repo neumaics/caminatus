@@ -109,8 +109,3 @@ impl PID {
 pub fn proportional() -> f32 {
     PID::init(1.0, 2.0, 3.0).compute(1.1, 204.2)
 }
-
-#[test]
-fn name() {
-    unimplemented!();
-}

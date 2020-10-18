@@ -12,6 +12,7 @@ const CLOCK_FREQUENCY: u32 = 1_000_000;
 pub struct Max_31855 {
     initialized: bool,
 }
+
 impl Thermocouple for Max_31855 {
     fn new(clock_pin: u8, cs_pin: u8, miso: u8) -> Self {
         // let mut spi = SPI::new(MODE_0, miso, mosi, sck, tmr);
@@ -20,11 +21,6 @@ impl Thermocouple for Max_31855 {
             initialized: false,
             // spi: spi,
         }
-    }
-
-    fn begin(mut self) -> bool {
-        self.initialized = true;
-        true
     }
 
     fn read_internal(self) -> f64 {
