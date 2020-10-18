@@ -7,15 +7,17 @@ const DEFAULT_CONFIG_FILE: &str = "./config.yaml";
 
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
-    log_level: Option<String>,
+    pub log_level: Option<String>,
     pub web: WebConfig,
     pub poll_interval: Option<u32>,
+    pub thermocouple_address: u16,
 }
 
 pub struct Config {
-    log_level: String,
+    pub log_level: String,
     pub web: WebConfig,
     pub poll_interval: u32,
+    pub thermocouple_address: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,9 +33,10 @@ impl Config {
         let c: ConfigFile = serde_yaml::from_str(content.as_str())?;
 
         let conf = Config {
-            log_level: "info".to_string(),
+            log_level: c.log_level.unwrap_or("info".to_string()),
             web: c.web,
             poll_interval: c.poll_interval.unwrap_or(1000), // TODO: enforce value greater than 0
+            thermocouple_address: c.thermocouple_address
         };
 
         Ok(conf)

@@ -9,6 +9,7 @@
 use rppal::i2c::I2c;
 
 use crate::kiln::thermocouple::{Thermocouple, ThermocoupleError, I2C};
+
 // Registers
 const HOT_JUNCTION_TEMPERATURE: u8 = 0x00;
 // const JUNCTION_TEMPERATURE_DELTA: u8 = 0x01;
@@ -46,13 +47,15 @@ pub struct MCP960X {
 }
 
 impl I2C for MCP960X {
-    fn new(address: u16) -> Self {
+    fn new(address: u16) -> MCP960X {
         let mut i2c = I2c::new().unwrap();
         let _ = i2c.set_slave_address(address);
 
-        MCP960X {
+        let result: MCP960X = MCP960X {
             i2c: i2c,
-        }
+        };
+
+        result
     }
 }
 
@@ -85,8 +88,18 @@ impl Thermocouple for MCP960X {
     }
 }
 
-// Converts the two byte representation of the temperature to its floating point representation.
-//   See in the datasheet: TABLE 5-1:SUMMARY OF REGISTERS AND BIT ASSIGNMENTS
+/// Converts the two byte representation of the temperature to its floating point representation.
+///   See in the datasheet: TABLE 5-1:SUMMARY OF REGISTERS AND BIT ASSIGNMENTS
+/// 
+/// Hot junction and junctions temperature delta, alert limits registers:
+///   |       | bit 7 | bit 6 | bit 5 | bit 4 | bit 3 | bit 2 |  bit 1 |   bit 0 |
+///   |-------|-------|-------|-------|-------|-------|-------|--------|---------|
+///   | upper |  SIGN | 1024C |  512C |  256C |  128C |   64C |    32C |     16C |
+///   | lower |    8C |    4C |    2C |    1C |  0.5C | 0.25C | 0.125C | 0.0625C |
+/// 
+/// Cold junction temperature
+///   | upper |  SIGN |  SIGN |  SIGN |  SIGN |  128C |   64C |    32C |     16C |
+///   | lower |    8C |    4C |    2C |    1C |  0.5C | 0.25C | 0.125C | 0.0625C |
 fn to_float(register: [u8; 2], sign_mask: u8) -> f64 {
     let [upper, lower] = register;
     let sign: bool = (upper.clone() >> 7) == 0;

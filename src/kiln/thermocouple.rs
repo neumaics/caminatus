@@ -1,4 +1,7 @@
 pub enum ThermocoupleError {
+    UNSUPPORTED_PLATFORM {
+        message: String,
+    },
     OPEN_CIRCUIT,
     SHORT_CIRCUIT,
     UNKNOWN,
@@ -12,11 +15,11 @@ pub trait Thermocouple {
 }
 
 pub trait I2C {
-    fn new(device_id: u16) -> Self;
+    fn new(address: u16) -> Self;
 }
 
 pub trait SPI {
-    fn new(clock_pin: u8, chip_select_pin: u8, master_out_slave_in_pin: u8) -> Self;
+    fn new(clock_pin: u8, chip_select_pin: u8, master_in_slave_out_pin: u8) -> Self;
 }
 
 pub struct Simulated {
@@ -44,4 +47,3 @@ impl Thermocouple for Simulated {
         self.next_error
     }
 }
-
