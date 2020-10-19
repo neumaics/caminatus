@@ -20,8 +20,10 @@ if test -e ./target/caminatus-0.0.0.tar.gz
 end
 
 mkdir -p ./target/$TARGET/package/0.0.0/examples
+mkdir ./target/$TARGET/package/0.0.0/profiles
 
 cp ./target/$TARGET/release/caminatus ./target/$TARGET/package/0.0.0
+cp ./profiles/* ./target/$TARGET/package/0.0.0/profiles
 cp ./config.yaml.example ./target/$TARGET/package
 
 for EXAMPLE in $EXAMPLES
