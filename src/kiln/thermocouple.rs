@@ -1,10 +1,10 @@
 pub enum ThermocoupleError {
-    UNSUPPORTED_PLATFORM {
+    UnsupportedPlatform {
         message: String,
     },
-    OPEN_CIRCUIT,
-    SHORT_CIRCUIT,
-    UNKNOWN,
+    OpenCircuit,
+    ShortCircuit,
+    Unknown,
 }
 
 // TODO: Make measurement readings return Result<f64, ThermocoupleError>.
@@ -33,7 +33,7 @@ impl SPI for Simulated {
         Simulated {
             next_internal: 0.0,
             next_hotend: 0.0,
-            next_error: ThermocoupleError::UNKNOWN,
+            next_error: ThermocoupleError::Unknown,
         }
     }
 }

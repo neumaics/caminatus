@@ -183,6 +183,7 @@ impl Step {
         }
     }
 
+    /// Converts the rate to seconds for normalization
     pub fn rate_to_seconds(step: &Step, rate: &Rate) -> u32 {
         let t_delta = &step.end_temperature - &step.start_temperature;
         let p = t_delta.abs() / rate.value as f64;
@@ -214,5 +215,26 @@ impl From<serde_yaml::Error> for ScheduleError {
 
 #[cfg(test)]
 mod schedule_tests {
+    use super::*;
+
+    #[test]
+    fn should_convert_rate_to_seconds() {
+        let rate = Rate {
+            value: 100,
+            unit: TimeUnit::Hours,
+        };
+
+        let step = Step {
+            description: None,
+            start_temperature: 0.0,
+            end_temperature: 1000.0,
+            duration: None,
+            rate: None
+        };
+
+        let seconds = Step::rate_to_seconds(&step, &rate);
+
+        assert_eq!(seconds, 36000);
+    }
 
 }

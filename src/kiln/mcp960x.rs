@@ -84,7 +84,7 @@ impl Thermocouple for MCP960X {
 
     fn read_error(self) -> ThermocoupleError {
         // TODO: Read status register and return errors.
-        ThermocoupleError::UNKNOWN
+        ThermocoupleError::Unknown
     }
 }
 
