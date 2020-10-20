@@ -1,0 +1,10 @@
+name: not enough steps
+description: you can't one or fewer steps in the list
+scale: Celcius
+steps:
+    - description: Get temperature up from ambient.
+      start_temperature: 0
+      end_temperature: 100
+      rate:
+          value: 20
+          unit: Hours

@@ -23,13 +23,11 @@ impl Monitor {
     fn start(interval: u32) -> Monitor {
         let name = "status";
         let (status_tx, status_rx) = watch::channel(name);
+        let mut interval = time::interval(Duration::from_millis(interval as u64));
 
         tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(interval as u64));
-
-            while let _ = interval.tick().await {
-                let _ = status_tx.broadcast("beep");
-            }
+            interval.tick().await;
+            let _ = status_tx.broadcast("beep");
         });
 
         Monitor {

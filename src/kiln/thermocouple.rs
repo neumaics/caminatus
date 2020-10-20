@@ -24,23 +24,28 @@ pub trait SPI {
 
 pub struct Simulated {
     pub next_error: ThermocoupleError,
+    pub next_internal: f64,
+    pub next_hotend: f64,
 }
 
 impl SPI for Simulated {
     fn new(clock_pin: u8, cs_pin: u8, miso: u8) -> Self {
         Simulated {
+            next_internal: 0.0,
+            next_hotend: 0.0,
             next_error: ThermocoupleError::UNKNOWN,
         }
     }
 }
 
 impl Thermocouple for Simulated {
+
     fn read_internal(self) -> f64 {
-        0.0
+        self.next_internal
     }
 
     fn read(self) -> f64 {
-        0.0
+        self.next_hotend
     }
 
     fn read_error(self) -> ThermocoupleError {

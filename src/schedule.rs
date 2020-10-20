@@ -24,15 +24,22 @@ pub enum TemperatureScale {
     Kelvin,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all(deserialize = "PascalCase"))]
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub enum TimeUnit {
-    Hour,
-    Hours,
-    Minute,
-    Minutes,
-    Second,
-    Seconds,
+    #[serde(alias = "Hour")]
+    #[serde(alias = "hour")]
+    #[serde(alias = "hours")]
+    Hours = 3600,
+
+    #[serde(alias = "Minute")]
+    #[serde(alias = "minute")]
+    #[serde(alias = "minutes")]
+    Minutes = 60,
+
+    #[serde(alias = "Second")]
+    #[serde(alias = "second")]
+    #[serde(alias = "seconds")]
+    Seconds = 1,
 }
 
 // TODO: use std::time::Duration
@@ -56,6 +63,7 @@ pub struct NormalizedStep {
     end_temperature: f64,
 }
 
+// TODO: Add optional hold period.
 #[derive(Debug, Deserialize)]
 pub struct Step {
     description: Option<String>,
@@ -74,10 +82,12 @@ pub struct Schedule {
 }
 
 /// Variant of the Schedule, but is normalized to cumulative seconds
+#[derive(Debug, Deserialize)]
 pub struct NormalizedSchedule {
     pub name: String,
     pub description: Option<String>,
     pub scale: TemperatureScale,
+    pub steps: Vec<NormalizedStep>,
     
 }
 
@@ -99,18 +109,58 @@ impl Schedule {
             .into_iter()
             .filter_map(|s: Step| match s.validate().err() {
                 Some(ScheduleError::InvalidStep { description }) => Some(description),
+                // The other errors should have been covered in the `?` above.
                 Some(_) => Some("something unexpected happened".to_string()),
                 None => None
             })
             .collect::<Vec<String>>()
             .join("\n");
+        let steps = schedule2.steps.len();
 
-        if step_validation.len() == 0 {
+        if step_validation.len() == 0 && schedule2.steps.len() >= 2 {
             Ok(schedule2)
+        } else if steps < 2 {
+            Err(ScheduleError::InvalidStep {
+                description: "not enough steps in schedule. more than 2 required".to_string(),
+            })
         } else {
             Err(ScheduleError::InvalidStep {
                 description: step_validation
             })
+        }
+    }
+
+    // TODO: normalize temperatures to Kelvin.
+    pub fn normalize(self) -> NormalizedSchedule {
+        let mut steps: Vec<NormalizedStep> = Vec::new();
+        let mut i = 0;
+
+        // FIXME: too much indentation
+        for s in &self.steps {
+            // let start_time = i;
+            let end_time: u32 = match &s.duration {
+                Some(d) => Step::duration_to_seconds(d),
+                None => match &s.rate {
+                    Some(r) => Step::rate_to_seconds(s, r),
+                    None => 0
+                }
+            };
+
+            steps.push(NormalizedStep {
+                start_time: i,
+                end_time: i + end_time,
+                start_temperature: s.start_temperature,
+                end_temperature: s.end_temperature,
+            });
+
+            i += end_time;
+        }
+
+        NormalizedSchedule {
+            name: self.name,
+            description: self.description,
+            scale: self.scale,
+            steps: steps,
         }
     }
 }
@@ -131,6 +181,18 @@ impl Step {
                 description: "must have either a rate or duration, not both".to_string()
             })
         }
+    }
+
+    pub fn rate_to_seconds(step: &Step, rate: &Rate) -> u32 {
+        let t_delta = &step.end_temperature - &step.start_temperature;
+        let p = t_delta.abs() / rate.value as f64;
+        let time = p * ((rate.unit as u32) as f64);
+
+        time.round() as u32
+    }
+
+    pub fn duration_to_seconds(duration: &Duration) -> u32 {
+        (duration.value as u32) * (duration.unit as u32)
     }
 }
 
