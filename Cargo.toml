@@ -13,7 +13,7 @@ futures = { version = "0.3", default-features = false, features = ["alloc"] }
 rsfuzzy = { git = "https://github.com/auseckas/rsfuzzy" }
 tokio = { version = "0.2", features = ["full"] }
 tracing = "0.1"
-tracing-subscriber = "0.2"
+tracing-subscriber = "0.2" 
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
 serde_json = "1.0"

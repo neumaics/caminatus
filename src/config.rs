@@ -13,6 +13,7 @@ struct ConfigFile {
     pub thermocouple_address: u16,
 }
 
+#[derive(Debug, Clone)]
 pub struct Config {
     pub log_level: String,
     pub web: WebConfig,
@@ -20,7 +21,7 @@ pub struct Config {
     pub thermocouple_address: u16,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct WebConfig {
     pub port: u16,
     pub host: String,

@@ -234,7 +234,33 @@ mod schedule_tests {
 
         let seconds = Step::rate_to_seconds(&step, &rate);
 
-        assert_eq!(seconds, 36000);
+        assert_eq!(seconds, 36_000);
     }
 
+    #[test]
+    fn should_convert_duration_to_seconds() {
+        let duration = Duration {
+            value: 10,
+            unit: TimeUnit::Hours,
+        };
+
+        let seconds = Step::duration_to_seconds(&duration);
+        assert_eq!(seconds, 36_000);
+
+        let duration = Duration {
+            value: 60,
+            unit: TimeUnit::Minutes,
+        };
+
+        let seconds = Step::duration_to_seconds(&duration);
+        assert_eq!(seconds, 3_600);
+
+        let duration = Duration {
+            value: 10,
+            unit: TimeUnit::Seconds,
+        };
+
+        let seconds = Step::duration_to_seconds(&duration);
+        assert_eq!(seconds, 10);
+    }
 }

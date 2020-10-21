@@ -1,5 +1,5 @@
 mod config;
-pub use config::{Config, ConfigError};
+pub use config::*;
 
 pub mod schedule;
 pub mod device;
