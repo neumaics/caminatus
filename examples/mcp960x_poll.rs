@@ -2,8 +2,8 @@ use tokio;
 use std::time::{Duration};
 use tokio::time;
 
-use caminatus::kiln::thermocouple::{Thermocouple, I2C};
-use caminatus::kiln::mcp960x::MCP960X;
+use caminatus::sensor::thermocouple::{Thermocouple, I2C};
+use caminatus::sensor::mcp960x::MCP960X;
 
 #[tokio::main]
 async fn main() {

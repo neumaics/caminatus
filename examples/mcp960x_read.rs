@@ -1,7 +1,7 @@
 use std::panic;
 
-use caminatus::kiln::thermocouple::{Thermocouple, I2C};
-use caminatus::kiln::mcp960x::MCP960X;
+use caminatus::sensor::thermocouple::{Thermocouple, I2C};
+use caminatus::sensor::mcp960x::MCP960X;
 
 fn main() {
     match panic::catch_unwind(|| MCP960X::new(0x00)) {

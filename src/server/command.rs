@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Command {
@@ -16,12 +15,12 @@ pub enum Command {
     },
 }
 
-
+// FIXME: Use error in command
 impl From<String> for Command {
     fn from(string: String) -> Self {
         let command: Command = match serde_json::from_str(string.as_str()) {
             Ok(command) => command,
-            Err(error) => {
+            Err(_error) => {
                 Command::Unknown { input: string }
             }
         };
@@ -30,11 +29,12 @@ impl From<String> for Command {
     }
 }
 
+// FIXME: Use error in command
 impl From<&str> for Command {
     fn from(string: &str) -> Self {
         let command: Command = match serde_json::from_str(string) {
             Ok(command) => command,
-            Err(error) => {
+            Err(_error) => {
                 Command::Unknown { input: string.to_string() }
             }
         };
