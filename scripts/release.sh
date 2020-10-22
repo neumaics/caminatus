@@ -30,4 +30,4 @@ for EXAMPLE in $EXAMPLES
     cp ./target/$TARGET/release/examples/$EXAMPLE ./target/$TARGET/package/0.0.0/examples
 end
 
-tar -czvf ./target/caminatus-0.0.0.tar.gz ./target/$TARGET/package
+tar -czvf ./target/caminatus-0.0.0.tar.gz -C ./target/$TARGET/package .

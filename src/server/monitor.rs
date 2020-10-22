@@ -1,28 +1,36 @@
 use std::time::{Duration};
 
-use tokio::sync::watch;
-use tokio::time;
+use tokio::sync::mpsc::Sender;
+use tokio::{join, time};
+use tracing::info;
+
+use crate::server::Command;
 
 #[derive(Debug, Clone)]
 pub struct Monitor {
     pub name: &'static str,
-    pub receiver: tokio::sync::watch::Receiver<&'static str>
 }
 
 impl Monitor {
-    pub fn start(interval: u32) -> Monitor {
-        let name = "status";
-        let (status_tx, status_rx) = watch::channel(name);
-        let mut interval = time::interval(Duration::from_millis(interval as u64));
-
-        tokio::spawn(async move {
-            interval.tick().await;
-            let _ = status_tx.broadcast("beep");
+    pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Monitor, String> {
+        let name = "ping";
+        
+        let mut bcast = manager_sender.clone();
+        let handle = tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_millis(interval as u64));
+            loop {
+                interval.tick().await;
+                let _ = bcast.send(Command::Update { channel: name.to_string() }).await;
+            }
         });
 
-        Monitor {
-            name: name,
-            receiver: status_rx
-        }
+        info!("registering the ping service");
+        let register = manager_sender.send(Command::Register { channel: name.to_string() });
+
+        join!(register, handle);
+
+        Ok(Monitor {
+            name: name
+        })
     }
 }

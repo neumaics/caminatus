@@ -1,5 +1,5 @@
 mod command;
-pub use command::Command;
+pub use command::*;
 
 mod manager;
 pub use manager::Manager;

@@ -1,16 +1,22 @@
-use tokio::sync::mpsc;
-use tracing::{debug, info};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
-use tracing::{event, Level};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Sender, UnboundedSender};
+use tokio::{task, join};
+use tracing::{event, info, debug, Level};
+use uuid::Uuid;
+use warp::ws::Message;
+use warp::Error;
 
 use crate::config::Config;
-use crate::server::{Monitor, Command, Web};
+use crate::server::{Monitor, Command, Web, Api};
 
+type Subscriptions = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
 
 #[derive(Debug, Clone)]
 pub struct Manager {
-    monitor_service: Monitor,
-    sender: tokio::sync::mpsc::Sender<Command>
+    sender: Sender<Command>
 }
 
 impl Manager {
@@ -20,18 +26,65 @@ impl Manager {
         tracing_subscriber::fmt::init();
 
         let conf = Config::init().unwrap(); // TODO: Remove unwrap
-        let web_box = Web::start();
+        let web_box = Web::start(conf.clone(), m_tx.clone());
+        let subscriptions = Subscriptions::default();
+
+        let monitor = Monitor::start(conf.poll_interval, m_tx.clone());
     
         tokio::spawn(async move {
             while let Some(command) = m_rx.recv().await {
                 match command {
-                    Command::Subscribe { channel } => {
+                    Command::Subscribe { channel, id, sender } => {
                         info!("subscribing to channel {}", channel);
-                        //event!(Level::DEBUG, channel=channel.as_str(), "subscribing to channel");
-                        // let _ = responder.send(Ok(Bytes::from(Uuid::new_v4().to_string())));
+                        let mut locked = subscriptions.lock().unwrap();
+
+                        if locked.contains_key(&channel) {
+                            let subs = locked.get_mut(&channel).unwrap();
+                            subs.push((id, sender));
+                        } else {
+                            info!("attempting to subscribe to a channel that doesn't exist");
+                        }
                     },
-                    Command::Unsubscribe { channel } => {
+                    Command::Unsubscribe { channel, id } => {
                         info!("unsubscribing to channel {}", channel);
+                        let mut locked = subscriptions.lock().unwrap();
+
+                        if locked.contains_key(&channel) {
+                            let subs = locked.get_mut(&channel).unwrap();
+                            let index = subs.iter().position(|s| s.0 == id).unwrap();
+                            subs.remove(index);
+                        } else {
+                            info!("attempting to unsubscribe to a channel that doesn't exist");
+                        }
+                    },
+                    Command::Register { channel } => {
+                        info!("registering service {}", channel);
+                        let mut locked = subscriptions.lock().unwrap();
+                        // let foo = .contains_key(&channel);
+                        if locked.contains_key(&channel) {
+                            info!("channel already exists");
+                        } else {
+                            locked.insert(channel.to_string(), Vec::new());
+                            info!("channel doesn't exist, adding to list");
+                        }
+                    },
+                    Command::Update { channel } => {
+                        let mut locked = subscriptions.lock().unwrap();
+                        info!("updating the [{}] channel with new data", channel);
+
+                        if locked.contains_key(&channel) {
+                            let subs = locked.get_mut(&channel).unwrap();
+                            // subs.push((id, sender));
+                            for (_id, sender) in subs {
+                                info!("updating the user [id {}] with new data", _id);
+                                // if let Err(_) = sender.send(Ok(Message::text("ping"))) {
+                                //     debug!("error sending update to client");
+                                // };
+                                let _ = sender.send(Ok(Message::text("ping")));
+                            }
+                        } else {
+                            info!("attempting to update a channel that doesn't exist");
+                        }
                     },
                     Command::Unknown { input } => {
                         info!("unknown command received {}", input);
@@ -39,12 +92,12 @@ impl Manager {
                 }
             }
         });
-
-        let _ = web_box.unwrap().task_handle.await;
+        
+        join!(web_box.unwrap().task_handle, monitor);
 
         Ok(Manager {
             sender: m_tx,
-            monitor_service: Monitor::start(conf.poll_interval)
+            // monitor_service: Monitor::start(conf.poll_interval)
         })
         
     }
