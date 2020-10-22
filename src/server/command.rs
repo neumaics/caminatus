@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
-// use crate::server::Command;
-// use Result<warp::ws::Message, warp::Error>>
 use uuid::Uuid;
 use warp::Error;
 use warp::ws::Message;
 
+/// External Api
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Api {
     Subscribe {
@@ -21,6 +20,7 @@ pub enum Api {
     }
 }
 
+/// Internal Api
 pub enum Command {
     Subscribe {
         channel: String,
@@ -45,17 +45,15 @@ pub enum Command {
         input: String,
     },
 }
-
-// FIXME: Use error in command
 impl From<&str> for Api {
     fn from(string: &str) -> Self {
-        let api: Api = match serde_json::from_str(string) {
+        match serde_json::from_str(string) {
             Ok(api) => api,
             Err(_error) => {
-                Api::Unknown { input: string.to_string() }
+                Api::Unknown {
+                    input: string.to_string(),
+                }
             }
-        };
-
-        api
+        }
     }
 }

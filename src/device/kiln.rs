@@ -2,6 +2,14 @@ use rsfuzzy::*;
 use std::collections::HashMap;
 use std::time::SystemTime;
 
+pub struct Kiln {
+
+}
+
+impl Kiln {
+
+}
+
 /// Ripped off from
 ///   https://github.com/auseckas/rsfuzzy
 pub fn fuzzy() -> f32 {

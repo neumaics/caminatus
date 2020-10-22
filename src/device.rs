@@ -1,1 +1,2 @@
-pub mod kiln_control;
+mod kiln;
+pub use kiln::Kiln;

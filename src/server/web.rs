@@ -3,7 +3,7 @@ use futures::{FutureExt, StreamExt};
 use tokio::{task, join};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 use warp::ws::{WebSocket};
 use warp::Filter;
@@ -18,7 +18,7 @@ pub struct Web {
 
 impl Web {
     pub fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self, String> {
-        let (tx, mut rx) = mpsc::channel(16);
+        let (tx, _rx) = mpsc::channel(16);
         
         let manager = warp::any().map(move || manager_sender.clone());
 
@@ -50,16 +50,13 @@ impl Web {
 async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
     let id = Uuid::new_v4();
     let (user_ws_tx, mut user_ws_rx) = ws.split();
-    // let copy1 = manager.clone();
     let mut copy2 = manager.clone();
-    // let copy3 = manager.clone();
-    // let _monitor = copy1.monitor_service.receiver.clone();
 
     info!("client connecting");
     let (tx, rx) = mpsc::unbounded_channel();
-    let forwarder = tokio::task::spawn(rx.forward(user_ws_tx).map(|result| {
+    let forwarder = task::spawn(rx.forward(user_ws_tx).map(|result| {
         if let Err(e) = result {
-            eprintln!("websocket send error: {}", e);
+            error!("websocket send error: {}", e);
         }
     }));
 
@@ -89,7 +86,6 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
                     },
                     Api::Unknown { input } => Command::Unknown { input: input }
                 };
-                // match 
                 let _ = copy2.send(command).await;
             }
         }
