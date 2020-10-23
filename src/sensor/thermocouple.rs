@@ -1,3 +1,6 @@
+use rppal::i2c;
+
+#[derive(Debug)]
 pub enum ThermocoupleError {
     UnsupportedPlatform {
         message: String,
@@ -5,6 +8,17 @@ pub enum ThermocoupleError {
     OpenCircuit,
     ShortCircuit,
     Unknown,
+    I2CError {
+        source: i2c::Error
+    }
+}
+
+impl From<i2c::Error> for ThermocoupleError {
+    fn from(error: i2c::Error) -> ThermocoupleError {
+        ThermocoupleError::I2CError {
+            source: error
+        }
+    }
 }
 
 // TODO: Make measurement readings return Result<f64, ThermocoupleError>.
@@ -15,7 +29,7 @@ pub trait Thermocouple {
 }
 
 pub trait I2C {
-    fn new(address: u16) -> Self;
+    fn new<T>(address: u16) -> Result<T, ThermocoupleError>;
 }
 
 pub trait SPI {

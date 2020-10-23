@@ -46,21 +46,17 @@ pub struct MCP960X {
     i2c: I2c
 }
 
-impl I2C for MCP960X {
-    fn new(address: u16) -> MCP960X {
-        let mut i2c = I2c::new().unwrap();
-        let _ = i2c.set_slave_address(address);
+impl MCP960X {
+    pub fn new(address: u16) -> Result<Self, ThermocoupleError> {
+        let mut i2c = I2c::new()?;
+        let set = i2c.set_slave_address(address).unwrap();
 
-        let result: MCP960X = MCP960X {
+        Ok(MCP960X {
             i2c: i2c,
-        };
-
-        result
+        })
     }
-}
 
-impl Thermocouple for MCP960X {
-    fn read_internal(self) -> f64 {
+    pub fn read_internal(self) -> f64 {
         let mut reg = [0u8; 2];
         let result = self.i2c.block_read(COLD_JUNCTION_TEMPERATURE, &mut reg);
 
@@ -71,22 +67,33 @@ impl Thermocouple for MCP960X {
         }
     }
 
-    fn read(self) -> f64 {
+    pub fn read(mut self) -> f64 {
         let mut reg = [0u8; 2];
+
+        let read_command = [0b1100_0001];
+        let write = self.i2c.block_write(0b1100_000 as u8, &[HOT_JUNCTION_TEMPERATURE]);
+    
+        let begin_read = self.i2c.write(&read_command);
+        println!("begin_read -- {:?}", begin_read);
+
         let result = self.i2c.block_read(HOT_JUNCTION_TEMPERATURE, &mut reg);
 
         // Currently, `block_read` always returns Ok(()), so there's nothing to do here;
         match result {
             Ok(()) => to_float(reg, FIRST_BIT_SIGN),
-            Err(_error) => std::f64::NAN,
+            Err(error) => {
+                eprintln!("error: {}", error);
+                std::f64::NAN
+            },
         }
     }
 
-    fn read_error(self) -> ThermocoupleError {
+    pub fn read_error(self) -> ThermocoupleError {
         // TODO: Read status register and return errors.
         ThermocoupleError::Unknown
     }
 }
+
 
 /// Converts the two byte representation of the temperature to its floating point representation.
 ///   See in the datasheet: TABLE 5-1:SUMMARY OF REGISTERS AND BIT ASSIGNMENTS
