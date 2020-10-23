@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
+use tokio::sync::mpsc::UnboundedSender;
+use uuid::Uuid;
+use warp::Error;
+use warp::ws::Message;
 
+/// External Api
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Command {
+pub enum Api {
     Subscribe {
         channel: String,
     },
@@ -13,32 +17,43 @@ pub enum Command {
 
     Unknown {
         input: String,
-    },
-}
-
-
-impl From<String> for Command {
-    fn from(string: String) -> Self {
-        let command: Command = match serde_json::from_str(string.as_str()) {
-            Ok(command) => command,
-            Err(error) => {
-                Command::Unknown { input: string }
-            }
-        };
-
-        command
     }
 }
 
-impl From<&str> for Command {
-    fn from(string: &str) -> Self {
-        let command: Command = match serde_json::from_str(string) {
-            Ok(command) => command,
-            Err(error) => {
-                Command::Unknown { input: string.to_string() }
-            }
-        };
+/// Internal Api
+pub enum Command {
+    Subscribe {
+        channel: String,
+        id: Uuid,
+        sender: UnboundedSender<Result<Message, Error>>,
+    },
 
-        command
+    Unsubscribe {
+        channel: String,
+        id: Uuid
+    },
+
+    Register {
+        channel: String,
+    },
+
+    Update {
+        channel: String,
+
+    },
+    Unknown {
+        input: String,
+    },
+}
+impl From<&str> for Api {
+    fn from(string: &str) -> Self {
+        match serde_json::from_str(string) {
+            Ok(api) => api,
+            Err(_error) => {
+                Api::Unknown {
+                    input: string.to_string(),
+                }
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 // Expected to use MAX31855 Thermocouple to digital converter.
 //   See: https://datasheets.maximintegrated.com/en/ds/MAX31855.pdf
-
+// TODO: figure out spi interface to use flexible pin placement
 use bitbang_hal::spi::MODE_0;
 use bitbang_hal::spi::SPI;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
