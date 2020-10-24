@@ -7,6 +7,7 @@ use warp::ws::Message;
 /// External Api
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Api {
+    Schedules,
     Subscribe {
         channel: String,
     },

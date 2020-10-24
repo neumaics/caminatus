@@ -75,6 +75,7 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
             if message.to_str().is_ok() {
                 let api: Api = Api::from(message.to_str().unwrap());
                 let command = match api {
+                    Api::Schedules => Command::Unknown { input: "schedules".to_string() },
                     Api::Subscribe { channel } => Command::Subscribe {
                         channel: channel,
                         id: id,

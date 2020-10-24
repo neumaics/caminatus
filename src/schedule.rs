@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, io};
 use std::path::Path;
 
 use serde::{Deserialize};
@@ -163,6 +163,15 @@ impl Schedule {
             steps: steps,
         }
     }
+}
+
+fn get_schedules() -> () {
+    let mut entries = fs::read_dir("./schedules").unwrap()
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>().unwrap()
+
+    entries.sort();
+    let names: Vec<String> = entries.iter().map(|p| Path::new(p).file_stem().unwrap().to_str().unwrap().to_string()).collect();
 }
 
 impl Step {
