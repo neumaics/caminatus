@@ -9,9 +9,9 @@ use caminatus::sensor::mcp960x::MCP960X;
 async fn main() {
     let interval = 5000;
     let mut timer = time::interval(Duration::from_millis(interval as u64));
-    let thermocouple = MCP960X::new(0b1100_111).unwrap();
+
     loop {
-        
+        let thermocouple = MCP960X::new(0x60).unwrap();
         let value = thermocouple.read();
         println!("{:?} C", value);
 

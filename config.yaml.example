@@ -7,7 +7,7 @@ web:
 poll_interval: 10000
 
 # The i2c address for the MCP960X
-thermocouple_address: 0x67
+thermocouple_address: 0x60
 
 gpio:
     heater: 12

@@ -7,8 +7,9 @@
 ///   https://www.adafruit.com/product/4101
 /// 
 use rppal::i2c::I2c;
+use tracing::error;
 
-use crate::sensor::thermocouple::{Thermocouple, ThermocoupleError, I2C};
+use crate::sensor::thermocouple::ThermocoupleError;
 
 // Registers
 const HOT_JUNCTION_TEMPERATURE: u8 = 0x00;
@@ -43,47 +44,47 @@ const _DATA_SIGN: u8 = 0x03;
 
 
 pub struct MCP960X {
+    address: u16,
     i2c: I2c
 }
 
 impl MCP960X {
     pub fn new(address: u16) -> Result<Self, ThermocoupleError> {
         let mut i2c = I2c::new()?;
-        let set = i2c.set_slave_address(address).unwrap();
-
-        Ok(MCP960X {
-            i2c: i2c,
-        })
+        
+        match i2c.set_slave_address(address) {
+            Ok(_) => Ok(MCP960X {
+                address,
+                i2c: i2c,
+            }),
+            Err(error) => Err(ThermocoupleError::I2CError { source: error })
+        }   
     }
 
-    pub fn read_internal(self) -> f64 {
-        let mut reg = [0u8; 2];
-        let result = self.i2c.block_read(COLD_JUNCTION_TEMPERATURE, &mut reg);
-
-        // Currently, `block_read` always returns Ok(()), so there's nothing to do here;
-        match result {
-            Ok(()) => to_float(reg, TOP_HALF_SIGN),
-            Err(_error) => std::f64::NAN,
-        }
+    pub fn read_internal(self) -> Result<f64, ThermocoupleError> {
+        self.read_temperature(COLD_JUNCTION_TEMPERATURE, TOP_HALF_SIGN)
     }
 
-    pub fn read(mut self) -> f64 {
-        let mut reg = [0u8; 2];
+    pub fn read(self) -> Result<f64, ThermocoupleError> {
+        self.read_temperature(HOT_JUNCTION_TEMPERATURE, FIRST_BIT_SIGN)
+    }
 
-        let read_command = [0b1100_0001];
-        let write = self.i2c.block_write(0b1100_000 as u8, &[HOT_JUNCTION_TEMPERATURE]);
-    
-        let begin_read = self.i2c.write(&read_command);
-        println!("begin_read -- {:?}", begin_read);
+    fn read_temperature(mut self, junction: u8, sign_bits: u8) -> Result<f64, ThermocoupleError> {
+        let mut register = [0u8; 2];
 
-        let result = self.i2c.block_read(HOT_JUNCTION_TEMPERATURE, &mut reg);
+        let write_command: u8 = (self.address << 1) as u8;
+        let read_command:u8 = write_command | 0x01;
+        
+        self.i2c.block_write(write_command, &[junction])?;
+        self.i2c.write(&[read_command])?;
 
-        // Currently, `block_read` always returns Ok(()), so there's nothing to do here;
+        let result = self.i2c.block_read(junction, &mut register);
+
         match result {
-            Ok(()) => to_float(reg, FIRST_BIT_SIGN),
+            Ok(()) => Ok(to_float(register, sign_bits)),
             Err(error) => {
-                eprintln!("error: {}", error);
-                std::f64::NAN
+                error!("error: {}", error);
+                Err(ThermocoupleError::I2CError { source: error })
             },
         }
     }
@@ -109,23 +110,22 @@ impl MCP960X {
 ///   | lower |    8C |    4C |    2C |    1C |  0.5C | 0.25C | 0.125C | 0.0625C |
 fn to_float(register: [u8; 2], sign_mask: u8) -> f64 {
     let [upper, lower] = register;
-    let sign: bool = (upper.clone() >> 7) == 0;
+    let sign: f64 = if (upper.clone() & 0x80) == 0 { 1.0 } else { -1.0 };
 
     let upper = upper & sign_mask;
-    
-    let upper_shift: u16 = (upper as u16) << 4;
-    let lower_shift: u16 = (lower as u16) << 4;
+    let upper: u16 = (upper as u16) << 4;
+    let lower: u16 = (lower as u16) << 4;
 
-    let lower_div: f64 = (lower_shift as f64) / 256.0;
-    let result = (upper_shift as f64) + lower_div;
+    let lower_div: f64 = (lower as f64) / 256.0;
+    let result = (upper as f64) + lower_div;
     
-    let result = if sign {
-        result
-    } else {
-        -1.0 * result
-    };
-    
-    result
+    sign * result
+}
+
+impl Clone for MCP960X {
+    fn clone(&self) -> MCP960X {
+        MCP960X::new(self.address).unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -185,6 +185,7 @@ mod to_float_tests {
         test_hot_to_float(0b0001_0000, 0b0000_0000, 256.0);
         test_hot_to_float(0b0010_0000, 0b0000_0000, 512.0);
         test_hot_to_float(0b0100_0000, 0b0000_0000, 1024.0);
+        test_hot_to_float(0b1100_0000, 0b0000_0000, -1024.0);
         
         // -0, actually. not sure if this is a valid output
         test_hot_to_float(0b1000_0000, 0b0000_0000, 0.0);        
