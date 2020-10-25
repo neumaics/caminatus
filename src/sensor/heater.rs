@@ -7,10 +7,24 @@ pub struct Heater {
     pin: OutputPin
 }
 
+pub enum HeaterError {
+    GpioError {
+        source: rppal::gpio::Error
+    }
+}
+
+impl From<rppal::gpio::Error> for HeaterError {
+    fn from(error: rppal::gpio::Error) -> Self {
+        HeaterError::GpioError {
+            source: error
+        }
+    }
+}
+
 impl Heater {
     /// The gpio pin to send the on/off signal. Note, this is the gpio index and
     ///   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
-    pub fn init(gpio_pin: u8) -> Result<Heater, Box<dyn Error>> {
+    pub fn init(gpio_pin: u8) -> Result<Heater, HeaterError> {
         let pin = Gpio::new()?.get(gpio_pin)?.into_output();
 
         Ok(Heater {
@@ -38,6 +52,5 @@ impl Heater {
         // Turn on heater for t = proportion, turn off heater otherwise
 
         // Ensure heater is off
-
     }
 }

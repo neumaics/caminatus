@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
+use serde_json;
+use serde::Serialize;
 use rsfuzzy::*;
 use tokio::{join, task, time};
 use tokio::sync::mpsc;
@@ -9,12 +11,18 @@ use tracing::{info, debug};
 
 use crate::schedule::Schedule;
 use crate::server::Command;
+use crate::sensor::{Heater, MCP960X};
 
 pub enum KilnState {
     Idle,
     Running,
 }
 
+#[derive(Serialize)]
+pub struct KilnUpdate {
+    temperature: f64,
+    timestamp: i64
+}
 /// 
 pub struct Kiln {
     pub state: KilnState,
@@ -25,12 +33,13 @@ pub struct Kiln {
 impl Kiln {
     pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Kiln, KilnError> {
         let (tx, mut rx) = mpsc::channel(32);
+        let channel = "kiln";
 
+        let cmd_tx = tx.clone();
         let command_processor = task::spawn(async move {
             while let Some(command) = rx.recv().await {
                 match command {
                     Command::Start { schedule, simulate } => {
-
                         info!("starting {}", schedule.name);
                     },
                     _ => debug!("ignoring command"),
@@ -38,15 +47,26 @@ impl Kiln {
             }
         });
 
+        let mut update_tx = manager_sender.clone();
         let updater = task::spawn(async move {
             let mut interval = time::interval(Duration::from_millis(interval as u64));
+
             loop {
-                info!("doing kiln-ey things");
+                let thermocouple = MCP960X::new(0x60).unwrap();
+                let heater = Heater::init(12);
+
+                let temperature = thermocouple.read().unwrap();
+                let update = KilnUpdate {
+                    temperature: temperature,
+                    timestamp: chrono::offset::Local::now().timestamp_millis(),
+                };
+                let _ = update_tx.send(Command::Update { channel: channel.to_string(), data: serde_json::to_string(&update).unwrap() }).await;
+    
                 interval.tick().await;
             }
         });
 
-        let register = manager_sender.send(Command::Register { channel: "kiln".to_string() });
+        let register = manager_sender.send(Command::Register { channel: channel.to_string() });
 
         let _ = join!(command_processor, updater, register);
         Ok(Kiln {
@@ -57,10 +77,10 @@ impl Kiln {
     pub async fn start_schedule(schedule: Schedule) -> Result<bool, KilnError> {
         Ok(true)
     }
-}
 
-fn process_commands() {
+    pub async fn begin(self) {
 
+    }
 }
 
 pub struct KilnError {
@@ -181,8 +201,4 @@ impl PID {
         self.last_now = now;
         output
     }
-}
-
-pub fn proportional() -> f32 {
-    PID::init(1.0, 2.0, 3.0).compute(1.1, 204.2)
 }

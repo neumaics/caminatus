@@ -24,6 +24,7 @@ pub enum Api {
 }
 
 /// Internal Api
+#[derive(Debug)]
 pub enum Command {
     Subscribe {
         channel: String,
@@ -49,6 +50,7 @@ pub enum Command {
 
     Update {
         channel: String,
+        data: String,
 
     },
     Unknown {

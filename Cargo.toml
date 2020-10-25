@@ -9,6 +9,7 @@ license = "MIT"
 
 [dependencies]
 bytes = "0.5"
+chrono = "0.4"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 rsfuzzy = { git = "https://github.com/auseckas/rsfuzzy" }
 tokio = { version = "0.2", features = ["full"] }

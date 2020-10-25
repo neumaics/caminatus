@@ -3,7 +3,7 @@ use tokio::time;
 
 use std::time::{Duration};
 
-use caminatus::sensor::mcp960x::MCP960X;
+use caminatus::sensor::MCP960X;
 
 #[tokio::main]
 async fn main() {

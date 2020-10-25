@@ -84,13 +84,13 @@ impl Manager {
                     let mut locked = subscriptions.lock().unwrap();
 
                     if locked.contains_key(&channel) {
-                        debug!("channel already exists");
+                        debug!("channel [{}] already exists", channel);
                     } else {
+                        debug!("channel [{}] doesn't exist, adding to list", channel);
                         locked.insert(channel.to_string(), Vec::new());
-                        debug!("channel doesn't exist, adding to list");
                     }
                 },
-                Command::Update { channel } => {
+                Command::Update { channel, data } => {
                     let mut locked = subscriptions.lock().unwrap();
                     debug!("updating the [{}] channel with new data", channel);
 
@@ -100,7 +100,7 @@ impl Manager {
                         for (_id, sender) in subs {
                             debug!("updating the user [id {}] with new data", _id);
                             
-                            let _ = sender.send(Ok(Message::text("ping")));
+                            let _ = sender.send(Ok(Message::text(data.clone())));
                         }
                     } else {
                         debug!("attempting to update a channel that doesn't exist");

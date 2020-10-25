@@ -1,6 +1,6 @@
 use std::panic;
 
-use caminatus::sensor::mcp960x::MCP960X;
+use caminatus::sensor::MCP960X;
 
 fn main() {
     match panic::catch_unwind(|| MCP960X::new(0x60)) {

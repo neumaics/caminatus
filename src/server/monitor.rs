@@ -20,7 +20,7 @@ impl Monitor {
             let mut interval = time::interval(Duration::from_millis(interval as u64));
             loop {
                 interval.tick().await;
-                let _ = bcast.send(Command::Update { channel: name.to_string() }).await;
+                let _ = bcast.send(Command::Update { channel: name.to_string(), data: name.to_string() }).await;
             }
         });
 
