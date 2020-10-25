@@ -11,6 +11,7 @@ use warp::Error;
 
 use crate::config::Config;
 use crate::server::{Monitor, Command, Web};
+use crate::device::Kiln;
 
 type Subscriptions = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
 
@@ -26,7 +27,7 @@ impl Manager {
         tracing_subscriber::fmt::init();
 
         let conf = Config::init().unwrap(); // TODO: Remove unwrap
-        let web_box = Web::start(conf.clone(), m_tx.clone());
+        let web = Web::start(conf.clone(), m_tx.clone());
         let subscriptions = Subscriptions::default();
 
         let monitor = Monitor::start(conf.poll_interval, m_tx.clone());
@@ -34,8 +35,10 @@ impl Manager {
         tokio::spawn(async move { 
             let _ = Manager::process_commands(m_rx, subscriptions).await;
         });
+
+        let kiln = Kiln::start(conf.poll_interval, m_tx.clone());
         
-        join!(web_box.unwrap().task_handle, monitor);
+        join!(web, monitor, kiln);
 
         Ok(Manager {
             sender: m_tx,
@@ -104,7 +107,10 @@ impl Manager {
                     }
                 },
                 Command::Unknown { input } => {
-                    error!("unknown command received {}", input);
+                    error!("unknown command received {}. ignoring", input);
+                },
+                _ => {
+                    debug!("ignoring command");
                 }
             }
         }

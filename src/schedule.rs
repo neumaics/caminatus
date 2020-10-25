@@ -1,30 +1,31 @@
 use std::{fs, io};
 use std::path::Path;
+use std::fs::File;
+use std::io::prelude::*;
 
-use serde::{Deserialize};
-use serde_yaml::Location;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ScheduleError {
     InvalidStep {
         description: String,
     },
     IOError {
-        origin: std::io::Error
+        // origin: std::io::Error
     },
     InvalidYaml {
-        location: Option<Location>
+        location: String
     },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
     Celcius,
     Fahrenheit,
     Kelvin,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum TimeUnit {
     #[serde(alias = "Hour")]
     #[serde(alias = "hour")]
@@ -43,13 +44,13 @@ pub enum TimeUnit {
 }
 
 // TODO: use std::time::Duration
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Duration {
     pub value: u16,
     pub unit: TimeUnit
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Rate {
     pub value: u16,
     pub unit: TimeUnit
@@ -64,7 +65,7 @@ pub struct NormalizedStep {
 }
 
 // TODO: Add optional hold period.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Step {
     description: Option<String>,
     start_temperature: f64,
@@ -73,7 +74,7 @@ pub struct Step {
     rate: Option<Rate>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Schedule {
     pub name: String,
     pub description: Option<String>,
@@ -163,15 +164,25 @@ impl Schedule {
             steps: steps,
         }
     }
-}
 
-fn get_schedules() -> () {
-    let mut entries = fs::read_dir("./schedules").unwrap()
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>().unwrap()
+    pub fn all() -> Vec<String> {
+        let mut entries = fs::read_dir("./schedules").unwrap()
+            .map(|res| res.map(|e| e.path()))
+            .collect::<Result<Vec<_>, io::Error>>().unwrap();
+    
+        entries.sort();
+        let names: Vec<String> = entries.iter().map(|p| Path::new(p).file_stem().unwrap().to_str().unwrap().to_string()).collect();
+        names
+    }
 
-    entries.sort();
-    let names: Vec<String> = entries.iter().map(|p| Path::new(p).file_stem().unwrap().to_str().unwrap().to_string()).collect();
+    pub fn by_name(name: String) -> Result<Schedule, ScheduleError> {
+        let mut file = File::open(format!("./schedules/{}.yaml", name))?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        let schedule = serde_yaml::from_str(contents.as_str())?;
+        Ok(schedule)
+    }
 }
 
 impl Step {
@@ -207,9 +218,9 @@ impl Step {
 }
 
 impl From<std::io::Error> for ScheduleError {
-    fn from(error: std::io::Error) -> ScheduleError {
+    fn from(_error: std::io::Error) -> ScheduleError {
         ScheduleError::IOError {
-            origin: error
+            // origin: error
         }
     }
 }
@@ -217,7 +228,7 @@ impl From<std::io::Error> for ScheduleError {
 impl From<serde_yaml::Error> for ScheduleError {
     fn from(error: serde_yaml::Error) -> ScheduleError {
         ScheduleError::InvalidYaml {
-            location: error.location(),
+            location: format!("{:?}", error.location()),
         }
     }
 }

@@ -4,6 +4,8 @@ use uuid::Uuid;
 use warp::Error;
 use warp::ws::Message;
 
+use crate::schedule::Schedule;
+
 /// External Api
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Api {
@@ -37,6 +39,13 @@ pub enum Command {
     Register {
         channel: String,
     },
+
+    Start {
+        schedule: Schedule,
+        simulate: bool
+    },
+
+    Stop,
 
     Update {
         channel: String,

@@ -1,10 +1,14 @@
 use std::collections::HashMap;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use rsfuzzy::*;
-use tokio::task;
+use tokio::{join, task, time};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Sender};
+use tracing::{info, debug};
 
 use crate::schedule::Schedule;
+use crate::server::Command;
 
 pub enum KilnState {
     Idle,
@@ -13,17 +17,38 @@ pub enum KilnState {
 
 /// 
 pub struct Kiln {
-    pub state: KilnState
+    pub state: KilnState,
+    
 }
 
 ///
 impl Kiln {
-    pub async fn start() -> Result<Kiln, KilnError> {
-        // Grab a thermocouple and heater instance
-        task::spawn(async move {
-            // query components, update system with data
+    pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Kiln, KilnError> {
+        let (tx, mut rx) = mpsc::channel(32);
+
+        let command_processor = task::spawn(async move {
+            while let Some(command) = rx.recv().await {
+                match command {
+                    Command::Start { schedule, simulate } => {
+
+                        info!("starting {}", schedule.name);
+                    },
+                    _ => debug!("ignoring command"),
+                }
+            }
         });
 
+        let updater = task::spawn(async move {
+            let mut interval = time::interval(Duration::from_millis(interval as u64));
+            loop {
+                info!("doing kiln-ey things");
+                interval.tick().await;
+            }
+        });
+
+        let register = manager_sender.send(Command::Register { channel: "kiln".to_string() });
+
+        let _ = join!(command_processor, updater, register);
         Ok(Kiln {
             state: KilnState::Idle
         })
@@ -32,6 +57,10 @@ impl Kiln {
     pub async fn start_schedule(schedule: Schedule) -> Result<bool, KilnError> {
         Ok(true)
     }
+}
+
+fn process_commands() {
+
 }
 
 pub struct KilnError {

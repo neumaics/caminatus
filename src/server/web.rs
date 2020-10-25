@@ -1,5 +1,5 @@
-
 use futures::{FutureExt, StreamExt};
+use serde_json;
 use tokio::{task, join};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
@@ -10,19 +10,19 @@ use warp::Filter;
 
 use crate::server::{Command, Api};
 use crate::config::Config;
+use crate::schedule::Schedule;
 
 pub struct Web {
     pub sender: Sender<Command>,
-    pub task_handle: tokio::task::JoinHandle<()>, // FIXME: This feels especially inelegant.
 }
 
 impl Web {
-    pub fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self, String> {
+    pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self, String> {
         let (tx, _rx) = mpsc::channel(16);
         
         let manager = warp::any().map(move || manager_sender.clone());
 
-        let task_handle = tokio::spawn(async move {
+        let _ = tokio::spawn(async move {
             let ws = warp::path("ws")
                 .and(warp::ws())
                 .and(manager)
@@ -33,16 +33,26 @@ impl Web {
             let public = warp::path("public")
                 .and(warp::fs::dir("public"));
 
-            let routes = ws.or(public);
+            let schedules = warp::path("schedules")
+                .and(warp::path::end())
+                .map(|| serde_json::to_string(&Schedule::all()).unwrap());
+                
+            let schedule = warp::path("schedules")
+                .and(warp::path::param())
+                .map(|schedule_name: String| serde_json::to_string(&Schedule::by_name(schedule_name)).unwrap());
+
+            let routes = ws
+                .or(public)
+                .or(schedule)
+                .or(schedules);
 
             warp::serve(routes)
                 .run(([127, 0, 0, 1], conf.web.port))
                 .await;
-        });
+        }).await;
 
         Ok(Web {
             sender: tx,
-            task_handle: task_handle
         })
     }
 }
