@@ -10,6 +10,9 @@ use crate::schedule::Schedule;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Api {
     Schedules,
+    Start {
+        schedule_name: String
+    },
     Subscribe {
         channel: String,
     },

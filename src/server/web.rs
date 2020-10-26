@@ -95,7 +95,11 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
                         channel: channel,
                         id: id,
                     },
-                    Api::Unknown { input } => Command::Unknown { input: input }
+                    Api::Start { schedule_name } => Command::Start {
+                        simulate: false,
+                        schedule: Schedule::by_name(schedule_name).unwrap()
+                    },
+                    Api::Unknown { input } => Command::Unknown { input: input },
                 };
                 let _ = copy2.send(command).await;
             }

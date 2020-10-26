@@ -26,7 +26,7 @@ pub struct KilnUpdate {
 /// 
 pub struct Kiln {
     pub state: KilnState,
-    
+    pub sender: Sender<Command>
 }
 
 ///
@@ -35,12 +35,17 @@ impl Kiln {
         let (tx, mut rx) = mpsc::channel(32);
         let channel = "kiln";
 
-        let cmd_tx = tx.clone();
+        // let cmd_tx = tx.clone();
         let command_processor = task::spawn(async move {
             while let Some(command) = rx.recv().await {
                 match command {
                     Command::Start { schedule, simulate } => {
-                        info!("starting {}", schedule.name);
+                        if (simulate) {
+                            info!("simulating {} run", schedule.name);
+                        } else {
+                            info!("starting {}", schedule.name);
+                        }
+                        
                     },
                     _ => debug!("ignoring command"),
                 }
@@ -69,8 +74,10 @@ impl Kiln {
         let register = manager_sender.send(Command::Register { channel: channel.to_string() });
 
         let _ = join!(command_processor, updater, register);
+
         Ok(Kiln {
-            state: KilnState::Idle
+            state: KilnState::Idle,
+            sender: tx,
         })
     }
 
@@ -83,6 +90,7 @@ impl Kiln {
     }
 }
 
+#[derive(Debug)]
 pub struct KilnError {
 
 }

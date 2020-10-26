@@ -13,7 +13,8 @@ use crate::config::Config;
 use crate::server::{Monitor, Command, Web};
 use crate::device::Kiln;
 
-type Subscriptions = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
+type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
+type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
 
 #[derive(Debug, Clone)]
 pub struct Manager {
@@ -28,24 +29,28 @@ impl Manager {
 
         let conf = Config::init().unwrap(); // TODO: Remove unwrap
         let web = Web::start(conf.clone(), m_tx.clone());
-        let subscriptions = Subscriptions::default();
+        let subscriptions = SubscriptionList::default();
+        let services = ServiceList::default();
 
         let monitor = Monitor::start(conf.poll_interval, m_tx.clone());
+        let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await;
+
         
-        tokio::spawn(async move { 
-            let _ = Manager::process_commands(m_rx, subscriptions).await;
+        tokio::spawn(async move {
+            let _ = Manager::process_commands(m_rx, subscriptions, services).await;
         });
 
-        let kiln = Kiln::start(conf.poll_interval, m_tx.clone());
-        
-        join!(web, monitor, kiln);
+        join!(web, monitor);
 
         Ok(Manager {
             sender: m_tx,
         })
     }
 
-    async fn process_commands(mut receiver: Receiver<Command>, subscriptions: Subscriptions) -> Result<(), String> {
+    async fn process_commands(
+        mut receiver: Receiver<Command>,
+        subscriptions: SubscriptionList,
+        services: ServiceList) -> Result<(), String> {
         
         while let Some(command) = receiver.recv().await {
             match command {
@@ -105,6 +110,9 @@ impl Manager {
                     } else {
                         debug!("attempting to update a channel that doesn't exist");
                     }
+                },
+                Command::Start { schedule, simulate } => {
+
                 },
                 Command::Unknown { input } => {
                     error!("unknown command received {}. ignoring", input);
