@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use anyhow::Result;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Sender, UnboundedSender, Receiver};
 use tokio::join;
@@ -22,18 +23,18 @@ pub struct Manager {
 }
 
 impl Manager {
-    pub async fn start() -> Result<Manager, String> {
+    pub async fn start() -> Result<Manager> {
         event!(Level::DEBUG, "system started");
         let (m_tx, m_rx) = mpsc::channel(16);
         tracing_subscriber::fmt::init();
 
-        let conf = Config::init().unwrap(); // TODO: Remove unwrap
+        let conf = Config::init()?;
         let web = Web::start(conf.clone(), m_tx.clone());
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
 
         let monitor = Monitor::start(conf.poll_interval, m_tx.clone());
-        let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await;
+        let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await?;
 
         
         tokio::spawn(async move {
@@ -50,7 +51,8 @@ impl Manager {
     async fn process_commands(
         mut receiver: Receiver<Command>,
         subscriptions: SubscriptionList,
-        services: ServiceList) -> Result<(), String> {
+        services: ServiceList
+    ) -> Result<()> {
         
         while let Some(command) = receiver.recv().await {
             match command {

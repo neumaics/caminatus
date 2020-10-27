@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
+use anyhow::Result;
 use serde_json;
 use serde::Serialize;
 use rsfuzzy::*;
@@ -31,11 +32,10 @@ pub struct Kiln {
 
 ///
 impl Kiln {
-    pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Kiln, KilnError> {
+    pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Kiln> {
         let (tx, mut rx) = mpsc::channel(32);
         let channel = "kiln";
 
-        // let cmd_tx = tx.clone();
         let command_processor = task::spawn(async move {
             while let Some(command) = rx.recv().await {
                 match command {
@@ -93,6 +93,14 @@ impl Kiln {
 #[derive(Debug)]
 pub struct KilnError {
 
+}
+
+
+impl std::error::Error for KilnError {}
+impl std::fmt::Display for KilnError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Kiln Error")
+    }
 }
 
 pub struct FuzzyController {

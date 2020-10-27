@@ -60,6 +60,7 @@ pub enum Command {
         input: String,
     },
 }
+
 impl From<&str> for Api {
     fn from(string: &str) -> Self {
         match serde_json::from_str(string) {
