@@ -47,7 +47,7 @@ impl Web {
                 .or(schedules);
 
             warp::serve(routes)
-                .run(([0, 0, 0, 0], conf.web.port))
+                .run((conf.web.host_ip, conf.web.port))
                 .await;
         }).await;
 

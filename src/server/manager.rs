@@ -23,21 +23,19 @@ pub struct Manager {
 }
 
 impl Manager {
-    pub async fn start() -> Result<Manager> {
-        event!(Level::DEBUG, "system started");
+    pub async fn start(conf: Config) -> Result<Manager> {
+        event!(Level::DEBUG, "system starting");
         let (m_tx, m_rx) = mpsc::channel(16);
         tracing_subscriber::fmt::init();
 
-        let conf = Config::init()?;
         let web = Web::start(conf.clone(), m_tx.clone());
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
 
         let monitor = Monitor::start(conf.poll_interval, m_tx.clone());
-        let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await?;
+        //let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await?;
 
-        
-        tokio::spawn(async move {
+        tokio::task::spawn(async move {
             let _ = Manager::process_commands(m_rx, subscriptions, services).await;
         });
 
