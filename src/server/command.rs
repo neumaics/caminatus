@@ -27,8 +27,12 @@ pub enum Api {
 }
 
 /// Internal Api
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Command {
+    Forward {
+        channel: String,
+        cmd: Box<Command>
+    },
     Subscribe {
         channel: String,
         id: Uuid,

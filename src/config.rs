@@ -7,6 +7,7 @@ use std::path::Path;
 use serde::{Deserialize};
 
 const DEFAULT_CONFIG_FILE: &str = "./config.yaml";
+const DEFAULT_LOG_LEVEL: &str = "info";
 
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
@@ -72,7 +73,7 @@ impl TryFrom<ConfigFile> for Config {
         let host_ip: Ipv4Addr = value.web.host_ip.parse()?;
 
         let conf = Config {
-            log_level: value.log_level.unwrap_or("info".to_string()),
+            log_level: value.log_level.unwrap_or(DEFAULT_LOG_LEVEL.to_string()),
             web: WebConfig {
                 port: value.web.port,
                 host_ip: host_ip,

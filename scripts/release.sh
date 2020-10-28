@@ -4,9 +4,8 @@
 #   Read version number from cargo file
 #   There's got to be a better way to do this
 set -x CROSS_DOCKER_IN_DOCKER true
-#set -x TARGET armv7-unknown-linux-gnueabihf
-#set -x TARGET  arm-unknown-linux-gnueabi
-set -x TARGET arm-unknown-linux-gnueabihf
+#set -x TARGET armv7-unknown-linux-gnueabihf # RPi 3, 4
+set -x TARGET arm-unknown-linux-gnueabihf # RPi Zero
 
 cross build --release --examples --target $TARGET
 cross build --release --target $TARGET

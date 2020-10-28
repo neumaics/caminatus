@@ -7,8 +7,9 @@ use serde::Serialize;
 use rsfuzzy::*;
 use tokio::{join, task, time};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Sender};
+use tokio::sync::mpsc::{Sender, Receiver};
 use tracing::{info, debug};
+use uuid::Uuid;
 
 use crate::schedule::Schedule;
 use crate::server::Command;
@@ -26,77 +27,63 @@ pub struct KilnUpdate {
 }
 /// 
 pub struct Kiln {
+    pub id: Uuid,
     pub state: KilnState,
-    pub sender: Sender<Command>
+    pub sender: Sender<Command>,
+    receiver: Receiver<Command>,
+    thermocouple_address: u16, // 0x60
+    heater_pin: u8,
 }
 
 ///
 impl Kiln {
-    pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Kiln> {
-        let (tx, mut rx) = mpsc::channel(32);
-        let channel = "kiln";
+    pub fn new(thermocouple_address: u16, heater_pin: u8) -> Result<Kiln> {
+        let id = Uuid::new_v4();
+        let (tx, rx) = mpsc::channel(32);
 
-        let command_processor = task::spawn(async move {
-            while let Some(command) = rx.recv().await {
-                match command {
-                    Command::Start { schedule, simulate } => {
-                        if (simulate) {
-                            info!("simulating {} run", schedule.name);
-                        } else {
-                            info!("starting {}", schedule.name);
-                        }
-                        
-                    },
-                    _ => debug!("ignoring command"),
-                }
-            }
-        });
+        Ok(Kiln {
+            id: id,
+            state: KilnState::Idle,
+            sender: tx,
+            receiver: rx,
+            thermocouple_address: thermocouple_address,
+            heater_pin: heater_pin,
+        })
+    }
+
+    pub async fn start(self, interval: u32, mut manager_sender: Sender<Command>) -> Result<()> {
+        let channel = "kiln";
 
         let mut update_tx = manager_sender.clone();
         let updater = task::spawn(async move {
             let mut interval = time::interval(Duration::from_millis(interval as u64));
 
             loop {
-                let thermocouple = MCP960X::new(0x60).unwrap();
-                let heater = Heater::init(12);
+                let thermocouple = MCP960X::new(self.thermocouple_address).unwrap();
+                let heater = Heater::init(self.heater_pin);
 
                 let temperature = thermocouple.read().unwrap();
                 let update = KilnUpdate {
                     temperature: temperature,
                     timestamp: chrono::offset::Local::now().timestamp_millis(),
                 };
-                let _ = update_tx.send(Command::Update { channel: channel.to_string(), data: serde_json::to_string(&update).unwrap() }).await;
+                // let _ = update_tx.send(Command::Update { channel: channel.to_string(), data: serde_json::to_string(&update).unwrap() }).await;
     
                 interval.tick().await;
             }
         });
 
         let register = manager_sender.send(Command::Register { channel: channel.to_string() });
-
-        let _ = join!(command_processor, updater, register);
-
-        Ok(Kiln {
-            state: KilnState::Idle,
-            sender: tx,
-        })
-    }
-
-    pub async fn start_schedule(schedule: Schedule) -> Result<bool, KilnError> {
-        Ok(true)
-    }
-
-    pub async fn begin(self) {
-
+        // let subscribe = manager_sender.send(Command::Subscribe { id: id, channel: "clients".to_string() });
+        let _ = join!(updater, register);
+        Ok(())
     }
 }
 
 #[derive(Debug)]
-pub struct KilnError {
-
-}
-
-
+pub struct KilnError {}
 impl std::error::Error for KilnError {}
+
 impl std::fmt::Display for KilnError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Kiln Error")
