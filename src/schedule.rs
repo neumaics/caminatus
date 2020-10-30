@@ -18,7 +18,7 @@ pub enum ScheduleError {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
     Celcius,
     Fahrenheit,
@@ -44,13 +44,13 @@ pub enum TimeUnit {
 }
 
 // TODO: use std::time::Duration
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Duration {
     pub value: u16,
     pub unit: TimeUnit
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rate {
     pub value: u16,
     pub unit: TimeUnit
@@ -65,7 +65,7 @@ pub struct NormalizedStep {
 }
 
 // TODO: Add optional hold period.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Step {
     description: Option<String>,
     start_temperature: f64,
@@ -74,7 +74,7 @@ pub struct Step {
     rate: Option<Rate>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Schedule {
     pub name: String,
     pub description: Option<String>,

@@ -122,12 +122,6 @@ fn to_float(register: [u8; 2], sign_mask: u8) -> f64 {
     sign * result
 }
 
-impl Clone for MCP960X {
-    fn clone(&self) -> MCP960X {
-        MCP960X::new(self.address).unwrap()
-    }
-}
-
 #[cfg(test)]
 mod to_float_tests {
     use super::*;

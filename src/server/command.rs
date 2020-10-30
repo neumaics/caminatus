@@ -10,6 +10,7 @@ use crate::schedule::Schedule;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Api {
     Schedules,
+
     Start {
         schedule_name: String
     },
@@ -29,10 +30,13 @@ pub enum Api {
 /// Internal Api
 #[derive(Debug, Clone)]
 pub enum Command {
+    Failure,
+    
     Forward {
         channel: String,
         cmd: Box<Command>
     },
+
     Subscribe {
         channel: String,
         id: Uuid,
@@ -55,11 +59,14 @@ pub enum Command {
 
     Stop,
 
+    Success,
+
     Update {
         channel: String,
         data: String,
 
     },
+
     Unknown {
         input: String,
     },

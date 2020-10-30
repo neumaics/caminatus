@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Sender, UnboundedSender, Receiver};
+use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc::{Sender, Receiver, UnboundedSender};
+
 use tokio::join;
 use tracing::{debug, event, info, error, Level};
 use uuid::Uuid;
@@ -15,55 +16,77 @@ use crate::server::{Monitor, Command, Web};
 use crate::device::Kiln;
 
 type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
+type InternalSubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, Sender<Command>)>>>>;
 type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
 
 #[derive(Debug, Clone)]
 pub struct Manager {
-    sender: Sender<Command>,
+    sender: broadcast::Sender<Command>,
 }
 
 impl Manager {
     pub async fn start(conf: Config) -> Result<Manager> {
         event!(Level::DEBUG, "system starting");
-        let (m_tx, m_rx) = mpsc::channel(16);
+        let (b_tx, b_rx): (broadcast::Sender<Command>, broadcast::Receiver<Command>) = broadcast::channel(32);
         tracing_subscriber::fmt::init();
 
-        let web = Web::start(conf.clone(), m_tx.clone());
+        let web = Web::start(conf.clone(), b_tx.clone());
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
+        let internal = InternalSubscriptionList::default();
 
-        let monitor = Monitor::start(conf.poll_interval, m_tx.clone());
+        let monitor1 = Monitor::start(conf.poll_interval, b_tx.clone());
+        // let monitor2 = Monitor::start(conf.poll_interval, b_tx.clone());
         //let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await?;
 
         tokio::task::spawn(async move {
-            let _ = Manager::process_commands(m_rx, subscriptions, services).await;
+            let _ = Manager::process_commands(b_rx, subscriptions, internal, services).await;
         });
 
-        join!(web, monitor);
+        join!(web, monitor1);
 
         Ok(Manager {
-            sender: m_tx,
+            sender: b_tx,
         })
     }
 
     async fn process_commands(
-        mut receiver: Receiver<Command>,
+        mut receiver: broadcast::Receiver<Command>,
         subscriptions: SubscriptionList,
+        internal: InternalSubscriptionList,
         services: ServiceList
     ) -> Result<()> {
-        
-        while let Some(command) = receiver.recv().await {
+        while let Ok(command) = receiver.recv().await {
             match command {
+                Command::Forward { cmd, channel } => {
+                    let mut locked = internal.lock().unwrap();
+                    debug!("updating the [{}] channel with new data", channel);
+
+                    if locked.contains_key(&channel) {
+                        let subs = locked.get_mut(&channel).unwrap();
+
+                        for (_id, sender) in subs {
+                            debug!("updating the user [id {}] with new data", _id);
+                            let c = *cmd.clone();
+
+                            let _ = sender.send(c);
+                        }
+                    } else {
+                        debug!("attempting to update a channel that doesn't exist");
+                    }
+                }
                 Command::Subscribe { channel, id, sender } => {
                     info!("subscribing to channel {}", channel);
                     let mut locked = subscriptions.lock().unwrap();
+                    let temp = sender.clone();
 
                     if locked.contains_key(&channel) {
                         let subs = locked.get_mut(&channel).unwrap();
                         subs.push((id, sender));
+                        let _ = temp.send(Ok(Message::text("success")));
                     } else {
                         info!("attempting to subscribe to a channel that doesn't exist");
-                    }
+                    }                    
                 },
                 Command::Unsubscribe { channel, id } => {
                     info!("unsubscribing to channel {}", channel);

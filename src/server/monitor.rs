@@ -1,8 +1,8 @@
+/// Example worker/actor service that replies "ping" on the "ping" channel.
 use std::time::{Duration};
 
-use tokio::sync::mpsc::Sender;
 use tokio::{join, time};
-use tracing::info;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 use crate::server::Command;
 
@@ -12,22 +12,19 @@ pub struct Monitor {
 }
 
 impl Monitor {
-    pub async fn start(interval: u32, mut manager_sender: Sender<Command>) -> Result<Monitor, String> {
+    pub async fn start(interval: u32, channel: Sender<Command>) -> Result<Monitor, String> {
         let name = "ping";
-        
-        let mut bcast = manager_sender.clone();
+        let _ = channel.clone().send(Command::Register { channel: name.to_string() });
+
         let handle = tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_millis(interval as u64));
             loop {
                 interval.tick().await;
-                let _ = bcast.send(Command::Update { channel: name.to_string(), data: name.to_string() }).await;
+                let _ = channel.send(Command::Update { channel: name.to_string(), data: name.to_string() });
             }
         });
 
-        info!("registering the ping service");
-        let register = manager_sender.send(Command::Register { channel: name.to_string() });
-
-        join!(register, handle);
+        join!(handle);
 
         Ok(Monitor {
             name: name
