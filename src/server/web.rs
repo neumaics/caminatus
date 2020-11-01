@@ -109,5 +109,5 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
 }
 
 async fn on_disconnect() {
-    info!("client diconnecting");
+    info!("client disconnecting");
 }

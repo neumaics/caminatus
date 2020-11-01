@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::schedule::Schedule;
 use crate::server::Command;
-use crate::sensor::{Heater, MCP960X};
+use crate::sensor::{Heater, MCP9600};
 
 pub enum KilnState {
     Idle,
@@ -25,7 +25,7 @@ pub struct KilnUpdate {
     temperature: f64,
     timestamp: i64
 }
-/// 
+///
 pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
@@ -33,6 +33,7 @@ pub struct Kiln {
     receiver: Receiver<Command>,
     thermocouple_address: u16, // 0x60
     heater_pin: u8,
+    schedule: Option<Schedule>,
 }
 
 ///
@@ -48,35 +49,38 @@ impl Kiln {
             receiver: rx,
             thermocouple_address: thermocouple_address,
             heater_pin: heater_pin,
+            schedule: None,
         })
     }
 
     pub async fn start(self, interval: u32, mut manager_sender: Sender<Command>) -> Result<()> {
         let channel = "kiln";
+        let update_tx = manager_sender.clone();
 
-        let mut update_tx = manager_sender.clone();
         let updater = task::spawn(async move {
             let mut interval = time::interval(Duration::from_millis(interval as u64));
+            let mut thermocouple = MCP9600::new(self.thermocouple_address).unwrap();
+            let heater = Heater::init(self.heater_pin);
 
             loop {
-                let thermocouple = MCP960X::new(self.thermocouple_address).unwrap();
-                let heater = Heater::init(self.heater_pin);
-
-                let temperature = thermocouple.read().unwrap();
-                let update = KilnUpdate {
-                    temperature: temperature,
-                    timestamp: chrono::offset::Local::now().timestamp_millis(),
+                let temperature = &thermocouple.read().unwrap();
+                
+                let _ = match self.state {
+                    KilnState::Running => interval.tick().await,
+                    KilnState::Idle => interval.tick().await,
                 };
-                // let _ = update_tx.send(Command::Update { channel: channel.to_string(), data: serde_json::to_string(&update).unwrap() }).await;
-    
-                interval.tick().await;
             }
         });
 
         let register = manager_sender.send(Command::Register { channel: channel.to_string() });
-        // let subscribe = manager_sender.send(Command::Subscribe { id: id, channel: "clients".to_string() });
         let _ = join!(updater, register);
+
         Ok(())
+    }
+
+    pub fn start_schedule(&mut self, schedule: Schedule) {
+        self.state = KilnState::Running;
+        self.schedule = Some(schedule);
     }
 }
 

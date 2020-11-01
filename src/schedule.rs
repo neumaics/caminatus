@@ -5,18 +5,8 @@ use std::io::prelude::*;
 
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize)]
-pub enum ScheduleError {
-    InvalidStep {
-        description: String,
-    },
-    IOError {
-        // origin: std::io::Error
-    },
-    InvalidYaml {
-        location: String
-    },
-}
+mod error;
+use error::ScheduleError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
@@ -214,22 +204,6 @@ impl Step {
 
     pub fn duration_to_seconds(duration: &Duration) -> u32 {
         (duration.value as u32) * (duration.unit as u32)
-    }
-}
-
-impl From<std::io::Error> for ScheduleError {
-    fn from(_error: std::io::Error) -> ScheduleError {
-        ScheduleError::IOError {
-            // origin: error
-        }
-    }
-}
-
-impl From<serde_yaml::Error> for ScheduleError {
-    fn from(error: serde_yaml::Error) -> ScheduleError {
-        ScheduleError::InvalidYaml {
-            location: format!("{:?}", error.location()),
-        }
     }
 }
 

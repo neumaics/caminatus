@@ -1,9 +1,9 @@
 use std::panic;
 
-use caminatus::sensor::MCP960X;
+use caminatus::sensor::MCP9600;
 
 fn main() {
-    match panic::catch_unwind(|| MCP960X::new(0x60)) {
+    match panic::catch_unwind(|| MCP9600::new(0x60)) {
         Ok(thermocouple) => {
             let value = thermocouple.unwrap().read();
             println!("{:?}C", value);

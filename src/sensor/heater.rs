@@ -32,15 +32,15 @@ impl Heater {
         })
     }
 
-    pub fn toggle(mut self) {
+    pub fn toggle(&mut self) {
         self.pin.toggle();
     }
 
-    pub fn turn_on(mut self) {
+    pub fn turn_on(&mut self) {
         self.pin.set_high();
     }
 
-    pub fn turn_off(mut self) {
+    pub fn turn_off(&mut self) {
         self.pin.set_low();
     }
 
