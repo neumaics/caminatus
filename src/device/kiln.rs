@@ -8,6 +8,7 @@ use rsfuzzy::*;
 use tokio::{join, task, time};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Sender, Receiver};
+use tokio::time::delay_for;
 use tracing::{info, debug};
 use uuid::Uuid;
 
@@ -25,6 +26,7 @@ pub struct KilnUpdate {
     temperature: f64,
     timestamp: i64
 }
+
 ///
 pub struct Kiln {
     pub id: Uuid,
@@ -58,16 +60,22 @@ impl Kiln {
         let update_tx = manager_sender.clone();
 
         let updater = task::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(interval as u64));
+            let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(self.thermocouple_address).unwrap();
-            let heater = Heater::init(self.heater_pin);
+            let mut heater = Heater::new(self.heater_pin).unwrap();
 
             loop {
                 let temperature = &thermocouple.read().unwrap();
                 
-                let _ = match self.state {
-                    KilnState::Running => interval.tick().await,
-                    KilnState::Idle => interval.tick().await,
+                match self.state {
+                    KilnState::Running => {
+                        heater.on();
+                        heater.off();
+                        delay_for(Duration::from_millis(interval as u64)).await;
+                    } ,
+                    KilnState::Idle => {
+                        wait_interval.tick().await;
+                    },
                 };
             }
         });

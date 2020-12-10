@@ -36,8 +36,6 @@ impl Manager {
         let internal = InternalSubscriptionList::default();
 
         let monitor1 = Monitor::start(conf.poll_interval, b_tx.clone());
-        // let monitor2 = Monitor::start(conf.poll_interval, b_tx.clone());
-        //let kiln = Kiln::start(conf.poll_interval, m_tx.clone()).await?;
 
         tokio::task::spawn(async move {
             let _ = Manager::process_commands(b_rx, subscriptions, internal, services).await;
