@@ -9,6 +9,7 @@ pub enum ScheduleError {
     InvalidYaml {
         location: String
     },
+    InvalidJson { },
 }
 
 impl From<std::io::Error> for ScheduleError {
@@ -22,5 +23,11 @@ impl From<serde_yaml::Error> for ScheduleError {
         ScheduleError::InvalidYaml {
             location: format!("{:?}", error.location()),
         }
+    }
+}
+
+impl From<serde_json::Error> for ScheduleError {
+    fn from(error: serde_json::Error) -> ScheduleError {
+        ScheduleError::InvalidJson { }
     }
 }

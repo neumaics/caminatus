@@ -4,9 +4,12 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use serde::{Serialize, Deserialize};
+use uuid::Uuid;
 
 mod error;
 use error::ScheduleError;
+
+const SCHEDULES_DIRECTORY: &str = "./schedules";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
@@ -46,6 +49,7 @@ pub struct Rate {
     pub unit: TimeUnit
 }
 
+/// Human understandable schedule, without normalizations for processing.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Schedule {
     pub name: String,
@@ -85,31 +89,45 @@ impl Schedule {
     pub fn from_file(file_name: String) -> Result<Schedule, ScheduleError> {
         let content = fs::read_to_string(Path::new(file_name.as_str()))?;
 
-        Schedule::from_string(content)
+        Schedule::from_yaml(content)
     }
 
-    pub fn from_string(yaml_string: String) -> Result<Schedule, ScheduleError> {
-        // FIXME: cooperate with the borrow checker
-        let schedule: Schedule = serde_yaml::from_str(yaml_string.as_str())?;
-        let schedule2: Schedule = serde_yaml::from_str(yaml_string.as_str())?;
+    pub fn from_json(json_string: String) -> Result<Schedule, ScheduleError> {
+        let schedule: Schedule = serde_json::from_str(json_string.as_str())?;
+        
+        match Schedule::validate(&schedule) {
+            Ok(()) => Ok(schedule),
+            Err(error) => Err(error)
+        }        
+    }
 
-        // TODO: Recover index from the filter for messaging.
+    pub fn from_yaml(yaml_string: String) -> Result<Schedule, ScheduleError> {
+        let schedule: Schedule = serde_yaml::from_str(yaml_string.as_str())?;
+
+        match Schedule::validate(&schedule) {
+            Ok(()) => Ok(schedule),
+            Err(error) => Err(error)
+        }
+    }
+
+    fn validate(schedule: &Schedule) -> Result<(), ScheduleError> {
         let step_validation: String = schedule
             .steps
-            .into_iter()
-            .filter_map(|s: Step| match s.validate().err() {
-                Some(ScheduleError::InvalidStep { description }) => Some(description),
-                // The other errors should have been covered in the `?` above.
-                Some(_) => Some("something unexpected happened".to_string()),
+            .iter()
+            .filter_map(|s: &Step| match &s.validate().err() {
+                Some(ScheduleError::InvalidStep { description }) => Some(description.clone()),
+                // The other errors should have been covered in the deserialization process
+                Some(_) => None,
                 None => None
             })
+            .map(|s| s.into())
             .collect::<Vec<String>>()
             .join("\n");
-        let steps = schedule2.steps.len();
+        let steps = &schedule.steps.len();
 
-        if step_validation.len() == 0 && schedule2.steps.len() >= 2 {
-            Ok(schedule2)
-        } else if steps < 2 {
+        if step_validation.len() == 0 && *steps >= 2 {
+            Ok(())
+        } else if *steps < 2 {
             Err(ScheduleError::InvalidStep {
                 description: "not enough steps in schedule. more than 2 required".to_string(),
             })
@@ -127,7 +145,6 @@ impl Schedule {
 
         // FIXME: too much indentation
         for s in &self.steps {
-            // let start_time = i;
             let end_time: u32 = match &s.duration {
                 Some(d) => Step::duration_to_seconds(d),
                 None => match &s.rate {
@@ -155,7 +172,7 @@ impl Schedule {
     }
 
     pub fn all() -> Vec<String> {
-        let mut entries = fs::read_dir("./schedules").unwrap()
+        let mut entries = fs::read_dir(SCHEDULES_DIRECTORY).unwrap()
             .map(|res| res.map(|e| e.path()))
             .collect::<Result<Vec<_>, io::Error>>().unwrap();
     
@@ -165,12 +182,39 @@ impl Schedule {
     }
 
     pub fn by_name(name: String) -> Result<Schedule, ScheduleError> {
-        let mut file = File::open(format!("./schedules/{}.yaml", name))?;
+        let mut file = File::open(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, name))?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
 
         let schedule = serde_yaml::from_str(contents.as_str())?;
         Ok(schedule)
+    }
+
+    /// Create a new schedule with a given name.
+    pub fn new(schedule: Schedule) -> Result<String, ScheduleError> {
+        Schedule::validate(&schedule)?;
+        
+        let id = Uuid::new_v4();
+        let mut file = File::create(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, id.to_string().as_str()))?;
+        let schedule_string: String = serde_yaml::to_string(&schedule)?;
+        file.write_all(schedule_string.as_bytes())?;
+        
+        Ok(id.to_string())
+    }
+
+    pub fn update(id: String, schedule: Schedule) -> Result<String, ScheduleError> {
+        Schedule::validate(&schedule)?;
+        let mut file = File::create(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, id.to_string().as_str()))?;
+        let schedule_string: String = serde_yaml::to_string(&schedule)?;
+
+        file.write_all(schedule_string.as_bytes())?;
+
+        Ok(id)
+    }
+
+    pub fn delete(id: String) -> Result<String, ScheduleError> {
+        fs::remove_file(id.as_str())?;
+        Ok(id)
     }
 }
 
@@ -210,12 +254,12 @@ impl NormalizedSchedule {
 }
 
 impl Step {
-    pub fn validate(self) -> Result<Step, ScheduleError> {
+    pub fn validate(&self) -> Result<(), ScheduleError> {
         let has_rate = self.duration.is_some();
         let has_duration = self.rate.is_some();
 
         if has_rate ^ has_duration {
-            Ok(self)
+            Ok(())
         } else if !has_rate && !has_duration {
             Err(ScheduleError::InvalidStep {
                 description: "must have either a rate or duration".to_string()
