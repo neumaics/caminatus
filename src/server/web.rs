@@ -6,7 +6,7 @@ use tokio::sync::broadcast::Sender;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 use warp::ws::{WebSocket};
-use warp::Filter;
+use warp::{filters::BoxedFilter, Filter, Reply};
 
 use crate::server::{Command, Api};
 use crate::config::Config;
@@ -29,18 +29,9 @@ impl Web {
             let public = warp::path("public")
                 .and(warp::fs::dir("public"));
 
-            let schedules = warp::path("schedules")
-                .and(warp::path::end())
-                .map(|| serde_json::to_string(&Schedule::all()).unwrap());
-                
-            let schedule = warp::path("schedules")
-                .and(warp::path::param())
-                .map(|schedule_name: String| serde_json::to_string(&Schedule::by_name(schedule_name)).unwrap());
-
             let routes = ws
                 .or(public)
-                .or(schedule)
-                .or(schedules);
+                .or(Web::schedule_routes());
 
             warp::serve(routes)
                 .run((conf.web.host_ip, conf.web.port))
@@ -48,6 +39,46 @@ impl Web {
         }).await;
 
         Ok(Web { })
+    }
+
+    fn schedule_routes() -> BoxedFilter<(impl Reply,)> {
+        let schedules = warp::get()
+            .and(warp::path("schedules"))
+            .and(warp::path::end())
+            .map(|| serde_json::to_string(&Schedule::all()).unwrap());
+        
+        let schedule = warp::get()
+            .and(warp::path("schedules"))
+            .and(warp::path::param())
+            .map(|schedule_name: String| serde_json::to_string(&Schedule::by_name(schedule_name)).unwrap());
+
+        let new_schedule = warp::post()
+            .and(warp::path("schedules"))
+            .and(warp::path::end())
+            .and(warp::body::content_length_limit(1024 * 32))
+            .and(warp::body::json())
+            .map(|body: Schedule| Schedule::new(body).unwrap());
+
+        let update_schedule = warp::put()
+            .and(warp::path("schedules"))
+            .and(warp::path::param())
+            .and(warp::path::end())
+            .and(warp::body::content_length_limit(1024 * 32))
+            .and(warp::body::json())
+            .map(|schedule_name: String, body: Schedule| Schedule::update(schedule_name, body).unwrap());
+        
+        let delete_schedule = warp::delete()
+            .and(warp::path("schedules"))
+            .and(warp::path::param())
+            .and(warp::path::end())
+            .map(|schedule_id: String| Schedule::delete(schedule_id).unwrap());
+
+        schedules
+            .or(schedule)
+            .or(new_schedule)
+            .or(update_schedule)
+            .or(delete_schedule)
+            .boxed()
     }
 }
 

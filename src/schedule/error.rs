@@ -5,7 +5,9 @@ pub enum ScheduleError {
     InvalidStep {
         description: String,
     },
-    IOError { },
+    IOError {
+        description: String
+     },
     InvalidYaml {
         location: String
     },
@@ -13,8 +15,10 @@ pub enum ScheduleError {
 }
 
 impl From<std::io::Error> for ScheduleError {
-    fn from(_error: std::io::Error) -> ScheduleError {
-        ScheduleError::IOError { }
+    fn from(error: std::io::Error) -> ScheduleError {
+        ScheduleError::IOError {
+            description: format!("{:?}", error)
+        }
     }
 }
 
