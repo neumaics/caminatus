@@ -41,7 +41,7 @@ impl Web {
         Ok(Web { })
     }
 
-    fn schedule_routes() -> BoxedFilter<(impl Reply,)> {
+    pub fn schedule_routes() -> BoxedFilter<(impl Reply,)> {
         let schedules = warp::get()
             .and(warp::path("schedules"))
             .and(warp::path::end())
@@ -59,7 +59,7 @@ impl Web {
                         .status(warp::http::StatusCode::NOT_FOUND)
                         .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)),
                     _ => Response::builder()
-                        .status(warp::http::StatusCode::NOT_FOUND)
+                        .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
                         .body(format!("{:?}", error)),
                 }
             });
@@ -163,4 +163,40 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
 
 async fn on_disconnect() {
     info!("client disconnecting");
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn should_get_all_available_schedules() {
+        let filter = Web::schedule_routes();
+    
+        let response = warp::test::request()
+            .path("/schedules")
+            .reply(&filter)
+            .await;
+    
+        assert_eq!(response.status(), 200);
+    }
+
+    #[tokio::test]
+    async fn should_get_schedule_by_id() {
+        let filter = Web::schedule_routes();
+    
+        let response = warp::test::request()
+            .path("/schedules/sample")
+            .reply(&filter)
+            .await;
+    
+        assert_eq!(response.status(), 200);
+
+        let response = warp::test::request()
+            .path("/schedules/definitely_doesnt_exist")
+            .reply(&filter)
+            .await;
+    
+        assert_eq!(response.status(), 404);
+    }
 }

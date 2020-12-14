@@ -6,7 +6,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::sync::mpsc::{Sender, Receiver, UnboundedSender};
 
 use tokio::join;
-use tracing::{debug, event, info, error, Level};
+use tracing::{debug, event, info, error, Level, trace};
 use uuid::Uuid;
 use warp::ws::Message;
 use warp::Error;
@@ -58,19 +58,19 @@ impl Manager {
             match command {
                 Command::Forward { cmd, channel } => {
                     let mut locked = internal.lock().unwrap();
-                    debug!("updating the [{}] channel with new data", channel);
+                    trace!("updating the [{}] channel with new data", channel);
 
                     if locked.contains_key(&channel) {
                         let subs = locked.get_mut(&channel).unwrap();
 
                         for (_id, sender) in subs {
-                            debug!("updating the user [id {}] with new data", _id);
+                            trace!("updating the user [id {}] with new data", _id);
                             let c = *cmd.clone();
 
                             let _ = sender.send(c);
                         }
                     } else {
-                        debug!("attempting to update a channel that doesn't exist");
+                        trace!("attempting to update a channel that doesn't exist");
                     }
                 }
                 Command::Subscribe { channel, id, sender } => {
