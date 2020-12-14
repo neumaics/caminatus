@@ -6,11 +6,11 @@ use tokio::sync::broadcast::Sender;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 use warp::ws::{WebSocket};
-use warp::{filters::BoxedFilter, Filter, Reply};
+use warp::{filters::BoxedFilter, Filter, Reply, http::Response};
 
 use crate::server::{Command, Api};
 use crate::config::Config;
-use crate::schedule::Schedule;
+use crate::schedule::{Schedule, ScheduleError};
 
 pub struct Web { }
 
@@ -50,14 +50,36 @@ impl Web {
         let schedule = warp::get()
             .and(warp::path("schedules"))
             .and(warp::path::param())
-            .map(|schedule_name: String| serde_json::to_string(&Schedule::by_name(schedule_name)).unwrap());
+            .map(|id: String| match Schedule::by_name(&id) {
+                Ok(s) => Response::builder()
+                    .status(warp::http::StatusCode::OK)
+                    .body(serde_json::to_string(&s).unwrap()),
+                Err(error) => match error {
+                    ScheduleError::IOError { description: _ } => Response::builder()
+                        .status(warp::http::StatusCode::NOT_FOUND)
+                        .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)),
+                    _ => Response::builder()
+                        .status(warp::http::StatusCode::NOT_FOUND)
+                        .body(format!("{:?}", error)),
+                }
+            });
 
         let new_schedule = warp::post()
             .and(warp::path("schedules"))
             .and(warp::path::end())
             .and(warp::body::content_length_limit(1024 * 32))
             .and(warp::body::json())
-            .map(|body: Schedule| Schedule::new(body).unwrap());
+            .map(|body: Schedule| {
+                match Schedule::new(body) {
+                    Ok(s) => Response::builder()
+                        .status(warp::http::StatusCode::OK)
+                        .body(serde_json::to_string(&s).unwrap()),
+                    Err(err) => Response::builder()
+                        .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(format!("{:?}", err)),
+                }
+                
+            });
 
         let update_schedule = warp::put()
             .and(warp::path("schedules"))
@@ -125,7 +147,7 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
                         channel: "client".to_string(),
                         cmd: Box::new(Command::Start {
                             simulate: false,
-                            schedule: Schedule::by_name(schedule_name).unwrap()
+                            schedule: Schedule::by_name(&schedule_name).unwrap()
                     })},
                     Api::Unknown { input } => Command::Unknown { input: input },
                 };

@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
 mod error;
-use error::ScheduleError;
+pub use error::ScheduleError;
 
 const SCHEDULES_DIRECTORY: &str = "./schedules";
 
@@ -118,7 +118,7 @@ impl Schedule {
                 Some(ScheduleError::InvalidStep { description }) => Some(description.clone()),
                 // The other errors should have been covered in the deserialization process
                 Some(_) => None,
-                None => None
+                None => None,
             })
             .map(|s| s.into())
             .collect::<Vec<String>>()
@@ -181,7 +181,7 @@ impl Schedule {
         names
     }
 
-    pub fn by_name(name: String) -> Result<Schedule, ScheduleError> {
+    pub fn by_name(name: &String) -> Result<Schedule, ScheduleError> {
         let mut file = File::open(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, name))?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
