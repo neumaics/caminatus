@@ -31,7 +31,7 @@ impl Web {
 
             let routes = ws
                 .or(public)
-                .or(Web::schedule_routes());
+                .or(Web::schedule_routes(Some("./schedules".to_string())));
 
             warp::serve(routes)
                 .run((conf.web.host_ip, conf.web.port))
@@ -41,23 +41,29 @@ impl Web {
         Ok(Web { })
     }
 
-    pub fn schedule_routes() -> BoxedFilter<(impl Reply,)> {
+    pub fn schedule_routes(directory: Option<String>) -> BoxedFilter<(impl Reply,)> {
+        let dir = directory.unwrap_or("./schedules".to_string());
+        let dir = warp::any().map(move || dir.clone());
+
         let schedules = warp::get()
             .and(warp::path("schedules"))
             .and(warp::path::end())
-            .map(|| serde_json::to_string(&Schedule::all()).unwrap());
+            .and(dir.clone())
+            .map(|directory: String| serde_json::to_string(&Schedule::all(&directory)).unwrap());
         
         let schedule = warp::get()
             .and(warp::path("schedules"))
             .and(warp::path::param())
-            .map(|id: String| match Schedule::by_name(&id) {
+            .and(dir.clone())
+            .map(|id: String, directory: String| match Schedule::by_name(&id, &directory) {
                 Ok(s) => Response::builder()
                     .status(warp::http::StatusCode::OK)
                     .body(serde_json::to_string(&s).unwrap()),
                 Err(error) => match error {
                     ScheduleError::IOError { description: _ } => Response::builder()
                         .status(warp::http::StatusCode::NOT_FOUND)
-                        .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)),
+                        // TODO: make this a struct
+                        .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)), 
                     _ => Response::builder()
                         .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
                         .body(format!("{:?}", error)),
@@ -69,8 +75,9 @@ impl Web {
             .and(warp::path::end())
             .and(warp::body::content_length_limit(1024 * 32))
             .and(warp::body::json())
-            .map(|body: Schedule| {
-                match Schedule::new(body) {
+            .and(dir.clone())
+            .map(|body: Schedule, directory: String| {
+                match Schedule::new(body, &directory) {
                     Ok(s) => Response::builder()
                         .status(warp::http::StatusCode::OK)
                         .body(serde_json::to_string(&s).unwrap()),
@@ -92,8 +99,9 @@ impl Web {
         let delete_schedule = warp::delete()
             .and(warp::path("schedules"))
             .and(warp::path::param())
+            .and(dir.clone())
             .and(warp::path::end())
-            .map(|schedule_id: String| Schedule::delete(schedule_id).unwrap());
+            .map(|schedule_id: String, directory: String| Schedule::delete(schedule_id, &directory).unwrap());
 
         schedules
             .or(schedule)
@@ -119,6 +127,8 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
 
     let cmd_tx = tx.clone();
     let command_reader = task::spawn(async move {
+        let directory = "./schedules".to_string();
+
         while let Some(result) = user_ws_rx.next().await {
             debug!("{:?}", result);
             let message = match result {
@@ -147,7 +157,7 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
                         channel: "client".to_string(),
                         cmd: Box::new(Command::Start {
                             simulate: false,
-                            schedule: Schedule::by_name(&schedule_name).unwrap()
+                            schedule: Schedule::by_name(&schedule_name, &directory).unwrap()
                     })},
                     Api::Unknown { input } => Command::Unknown { input: input },
                 };
@@ -167,11 +177,15 @@ async fn on_disconnect() {
 
 #[cfg(test)]
 mod route_tests {
+    use tempfile::tempdir;
+    use std::fs;
+    use std::fs::File;
+    use anyhow::Result;
     use super::*;
-    
+
     #[tokio::test]
     async fn should_get_all_available_schedules() {
-        let filter = Web::schedule_routes();
+        let filter = Web::schedule_routes(Some("./tests/sample_schedules".to_string()));
     
         let response = warp::test::request()
             .path("/schedules")
@@ -183,10 +197,10 @@ mod route_tests {
 
     #[tokio::test]
     async fn should_get_schedule_by_id() {
-        let filter = Web::schedule_routes();
+        let filter = Web::schedule_routes(Some("./tests/sample_schedules".to_string()));
     
         let response = warp::test::request()
-            .path("/schedules/sample")
+            .path("/schedules/valid")
             .reply(&filter)
             .await;
     
@@ -198,5 +212,53 @@ mod route_tests {
             .await;
     
         assert_eq!(response.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn should_create_new_schedule() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("");
+        let valid = fs::read_to_string("./tests/sample_schedules/valid.json")?;
+        let filter = Web::schedule_routes(Some(file_path.into_os_string().into_string().unwrap()));
+        let response = warp::test::request()
+            .method("POST")
+            .path("/schedules")
+            .body(&valid)
+            .reply(&filter)
+            .await;
+
+        dir.close()?;
+        assert_eq!(response.status(), 200);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn should_delete_schedule() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("");
+        let valid = fs::read_to_string("./tests/sample_schedules/valid.json")?;
+        let filter = Web::schedule_routes(Some(file_path.clone().into_os_string().into_string().unwrap()));
+        let response = warp::test::request()
+            .method("POST")
+            .path("/schedules")
+            .body(&valid)
+            .reply(&filter)
+            .await;
+        
+        assert_eq!(response.status(), 200);
+
+        let new_file = response.body();
+        let file_string = &String::from_utf8(new_file.to_vec()).unwrap().replace('\"', "");
+        let response = warp::test::request()
+            .method("DELETE")
+            .path(format!("/schedules/{}", file_string).as_str())
+            .reply(&filter)
+            .await;
+   
+        dir.close()?;
+        assert_eq!(response.status(), 200);
+
+        Ok(())
     }
 }

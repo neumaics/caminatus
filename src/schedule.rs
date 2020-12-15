@@ -171,8 +171,8 @@ impl Schedule {
         }
     }
 
-    pub fn all() -> Vec<String> {
-        let mut entries = fs::read_dir(SCHEDULES_DIRECTORY).unwrap()
+    pub fn all(schedule_directory: &String) -> Vec<String> {
+        let mut entries = fs::read_dir(schedule_directory).unwrap()
             .map(|res| res.map(|e| e.path()))
             .collect::<Result<Vec<_>, io::Error>>().unwrap();
     
@@ -181,8 +181,8 @@ impl Schedule {
         names
     }
 
-    pub fn by_name(name: &String) -> Result<Schedule, ScheduleError> {
-        let mut file = File::open(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, name))?;
+    pub fn by_name(name: &String, schedule_directory: &String) -> Result<Schedule, ScheduleError> {
+        let mut file = File::open(format!("{}/{}.yaml", schedule_directory, name))?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
 
@@ -191,11 +191,11 @@ impl Schedule {
     }
 
     /// Create a new schedule with a given name.
-    pub fn new(schedule: Schedule) -> Result<String, ScheduleError> {
+    pub fn new(schedule: Schedule, schedule_directory: &String) -> Result<String, ScheduleError> {
         Schedule::validate(&schedule)?;
         
         let id = Uuid::new_v4();
-        let mut file = File::create(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, id.to_string().as_str()))?;
+        let mut file = File::create(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
         let schedule_string: String = serde_yaml::to_string(&schedule)?;
         file.write_all(schedule_string.as_bytes())?;
         
@@ -212,8 +212,8 @@ impl Schedule {
         Ok(id)
     }
 
-    pub fn delete(id: String) -> Result<String, ScheduleError> {
-        fs::remove_file(id.as_str())?;
+    pub fn delete(id: String, schedule_directory: &String) -> Result<String, ScheduleError> {
+        fs::remove_file(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
         Ok(id)
     }
 }
@@ -360,8 +360,6 @@ mod schedule_tests {
             ]
         };
         let normalized = schedule.normalize();
-
-        println!("{:?}", normalized);
 
         let time = 0;
         let target = normalized.target_temperature(time);

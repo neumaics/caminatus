@@ -1,0 +1,37 @@
+{
+    "name": "slow bisque",
+    "description": "drive off all of the moisture before rateing up",
+    "scale": "Celcius",
+    "steps": [
+      {
+        "description": "Get temperature up from ambient.",
+        "start_temperature": 0.0,
+        "end_temperature": 100.0,
+        "duration": null,
+        "rate": {
+          "value": 20,
+          "unit": "Hours"
+        }
+      },
+      {
+        "description": "Hold to drive off moisture",
+        "start_temperature": 100.0,
+        "end_temperature": 100.0,
+        "duration": {
+          "value": 1,
+          "unit": "Hours"
+        },
+        "rate": null
+      },
+      {
+        "description": null,
+        "start_temperature": 100.0,
+        "end_temperature": 800.0,
+        "duration": null,
+        "rate": {
+          "value": 200,
+          "unit": "Hours"
+        }
+      }
+    ]
+  }

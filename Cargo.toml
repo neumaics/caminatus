@@ -27,3 +27,6 @@ warp = { version = "0.2", features = ["default"] }
 rppal = { version = "0.11.3", features = ["hal"] }
 embedded-hal = "0.2"
 bitbang-hal = "0.3.2"
+
+[dev-dependencies]
+tempfile = "3.1.0"
