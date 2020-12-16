@@ -1,0 +1,37 @@
+{
+  "name": "caminatus",
+  "version": "1.0.0",
+  "description": "kiln system",
+  "main": "index.js",
+  "private": true,
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "webpack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neumaics/caminatus.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/neumaics/caminatus/issues"
+  },
+  "homepage": "https://github.com/neumaics/caminatus#readme",
+  "devDependencies": {
+    "@babel/core": "^7.12.10",
+    "@babel/preset-env": "^7.12.11",
+    "@babel/preset-react": "^7.12.10",
+    "babel-loader": "^8.2.2",
+    "webpack": "^5.10.3",
+    "webpack-cli": "^4.2.0"
+  },
+  "dependencies": {
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1"
+  }
+}
