@@ -94,7 +94,10 @@ impl Web {
             .and(warp::path::end())
             .and(warp::body::content_length_limit(1024 * 32))
             .and(warp::body::json())
-            .map(|schedule_name: String, body: Schedule| Schedule::update(schedule_name, body).unwrap());
+            .and(dir.clone())
+            .map(|schedule_name: String, body: Schedule, directory: String| {
+                Schedule::update(schedule_name, body, &directory).unwrap()
+            });
         
         let delete_schedule = warp::delete()
             .and(warp::path("schedules"))
@@ -179,7 +182,6 @@ async fn on_disconnect() {
 mod route_tests {
     use tempfile::tempdir;
     use std::fs;
-    use std::fs::File;
     use anyhow::Result;
     use super::*;
 

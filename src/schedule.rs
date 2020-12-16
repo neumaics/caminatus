@@ -202,9 +202,9 @@ impl Schedule {
         Ok(id.to_string())
     }
 
-    pub fn update(id: String, schedule: Schedule) -> Result<String, ScheduleError> {
+    pub fn update(id: String, schedule: Schedule, schedule_directory: &String) -> Result<String, ScheduleError> {
         Schedule::validate(&schedule)?;
-        let mut file = File::create(format!("{}/{}.yaml", SCHEDULES_DIRECTORY, id.to_string().as_str()))?;
+        let mut file = File::create(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
         let schedule_string: String = serde_yaml::to_string(&schedule)?;
 
         file.write_all(schedule_string.as_bytes())?;
