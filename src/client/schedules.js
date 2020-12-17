@@ -9,15 +9,35 @@ export class Schedules extends React.Component {
   componentDidMount() {
     fetch('http://localhost:8080/schedules')
       .then(response => response.json())
-      .then(data => { console.log(data); this.setState({ schedules: data })});
+      .then(data => { this.setState({ schedules: data })});
   }
 
   render() {
     const { schedules } = this.state;
-    return <div>
-      {schedules.map(schedule => 
-        <a href={`http://localhost:8080/schedules/${schedule}`}>{schedule}</a>
-      )}
-    </div>;
+    const components = schedules.map(schedule => <Schedule key={schedule} scheduleId={schedule} />)
+    return (<div>
+      {components}
+    </div>);
+  }
+}
+
+export class Schedule extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { id: props.scheduleId };
+  }
+
+  componentDidMount() {
+    fetch(`http://localhost:8080/schedules/${this.state.id}`)
+      .then(response => response.json())
+      .then(data => this.setState({ ...this.state, ...data }));
+  }
+
+  render() {
+    const { name } = this.state;
+
+    return (
+      <span>{name}</span>
+    );
   }
 }
