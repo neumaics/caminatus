@@ -1,43 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
-export class Schedules extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { schedules: [] };
-  }
+export const Schedules = (_props) => {
+  const [schedules, setSchedules] = useState([]);
 
-  componentDidMount() {
-    fetch('http://localhost:8080/schedules')
-      .then(response => response.json())
-      .then(data => { this.setState({ schedules: data })});
-  }
+  const getSchedules = () => fetch('http://localhost:8080/schedules')
+    .then(response => response.json())
+    .then(setSchedules);
+  
+  useEffect(getSchedules, []);
 
-  render() {
-    const { schedules } = this.state;
-    const components = schedules.map(schedule => <Schedule key={schedule} scheduleId={schedule} />)
-    return (<div>
-      {components}
-    </div>);
-  }
-}
+  const scheduleItems = schedules.map(s => <Schedule key={s} scheduleId={s} />);
 
-export class Schedule extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { id: props.scheduleId };
-  }
+  return <div>{scheduleItems}</div>
+};
 
-  componentDidMount() {
-    fetch(`http://localhost:8080/schedules/${this.state.id}`)
-      .then(response => response.json())
-      .then(data => this.setState({ ...this.state, ...data }));
-  }
+export const Schedule = ({ scheduleId }) => {
+  const [schedule, setSchedule] = useState({ name: '' });
 
-  render() {
-    const { name } = this.state;
+  const getScheduleInfo = () => fetch(`http://localhost:8080/schedules/${scheduleId}`)
+    .then(response => response.json())
+    .then(setSchedule);
 
-    return (
-      <span>{name}</span>
-    );
-  }
-}
+  useEffect(getScheduleInfo, []);
+  return <span>{schedule.name}</span>;
+};
