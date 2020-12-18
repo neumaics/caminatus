@@ -1,11 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
  
-import App from './app';
-
-const title = 'Caminatus';
+import { App } from './app';
  
 ReactDOM.render(
-  <App title={title} />,
+  <App />,
   document.getElementById('app')
 );
