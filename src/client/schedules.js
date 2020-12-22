@@ -1,5 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { Link } from 'wouter';
+
+const ScheduleGrid = styled.div`
+  display: grid;
+  grid-auto-rows: 3em;
+  padding: .5em
+`;
+
+const ScheduleItem = styled.div`
+  height: 100%;
+  
+  &:nth-child(odd) {
+    background-color: #C4C4C4;
+  }
+
+  &:nth-child(even) {
+    background-color: #E3E3E3;
+  }
+`;
 export const Schedules = () => {
   const [schedules, setSchedules] = useState([]);
 
@@ -8,29 +27,29 @@ export const Schedules = () => {
     .then(setSchedules);
   
   useEffect(getSchedules, []);
+  
+  const scheduleItems = schedules.map(s => (<ScheduleItem key={s}>
+    <Link href={`/app/schedules/${s}`}>{s}</Link>
+  </ScheduleItem>));
 
-  const scheduleItems = schedules.map(s => <Schedule key={s} scheduleId={s} />);
-
-  return <div>{scheduleItems}</div>
+  return (
+  <ScheduleGrid>
+    {scheduleItems}
+  </ScheduleGrid>);
 };
 
-export const Schedule = ({ scheduleId }) => {
+export const Schedule = ({ params }) => {
   const [schedule, setSchedule] = useState({ name: '' });
 
-  const getScheduleInfo = () => fetch(`http://localhost:8080/schedules/${scheduleId}`)
+  const getScheduleInfo = () => fetch(`http://localhost:8080/schedules/${params.scheduleName}`)
     .then(response => response.json())
     .then(setSchedule);
 
   useEffect(getScheduleInfo, []);
   return (<div>
     <span>{schedule.name}</span>
-    {/* <NewScheduleForm /> */}
   </div>);
 };
-
-Schedule.propTypes = {
-  scheduleId: '',
-}
 
 export const TEMPERATURE_SCALE = {
   CELSIUS: 'Celsius',

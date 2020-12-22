@@ -29,8 +29,19 @@ impl Web {
             let public = warp::path("public")
                 .and(warp::fs::dir("public"));
 
+            let app = warp::path("app")
+                .and(warp::filters::fs::file("public/index.html"));
+
+            let index = warp::path::end()
+                .and(warp::filters::fs::file("public/index.html"));
+            let js = warp::path("bundle.js")
+                .and(warp::filters::fs::file("public/bundle.js"));
+
             let routes = ws
+                .or(index)
+                .or(js)
                 .or(public)
+                .or(app)
                 .or(Web::schedule_routes(Some("./schedules".to_string())));
 
             warp::serve(routes)
