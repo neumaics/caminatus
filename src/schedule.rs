@@ -49,15 +49,6 @@ pub struct Rate {
     pub unit: TimeUnit
 }
 
-/// Human understandable schedule, without normalizations for processing.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Schedule {
-    pub name: String,
-    pub description: Option<String>,
-    pub scale: TemperatureScale,
-    pub steps: Vec<Step>,
-}
-
 // TODO: Add optional hold period.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Step {
@@ -83,6 +74,15 @@ pub struct NormalizedStep {
     end_time: u32,
     start_temperature: f64,
     end_temperature: f64,
+}
+
+/// Human understandable schedule, without normalizations for processing.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Schedule {
+    pub name: String,
+    pub description: Option<String>,
+    pub scale: TemperatureScale,
+    pub steps: Vec<Step>,
 }
 
 impl Schedule {
