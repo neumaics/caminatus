@@ -13,7 +13,7 @@ const SCHEDULES_DIRECTORY: &str = "./schedules";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
-    Celcius,
+    Celsius,
     Fahrenheit,
     Kelvin,
 }
@@ -341,7 +341,7 @@ mod schedule_tests {
         let schedule = Schedule {
             name: "test 1".to_string(),
             description: None,
-            scale: TemperatureScale::Celcius,
+            scale: TemperatureScale::Celsius,
             steps: vec![
                 Step {
                     description: None,

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { useForm, useFieldArray } from 'react-hook-form';
 
-import { TEMPERATURE_SCALE, TIME_SCALE } from './common';
+import { TEMPERATURE_SCALE, TIME_SCALE, STEP_TYPE, toServiceSchema, save } from './common';
 
 function Schedule() {
   this.name = '';
   this.description = '';
-  this.scale = '';
+  this.scale = TEMPERATURE_SCALE.CELSIUS;
   this.steps = [];
 
   return this;
@@ -16,8 +17,9 @@ function Step() {
   this.description = '';
   this.startTemperature = 0.0;
   this.endTemperature = 0.0;
-  this.duration = null;
-  this.rate = null;
+  this.type = STEP_TYPE.DURATION;
+  this.unit = TIME_SCALE.HOURS;
+  this.stepValue = 0.0;
 
   return this;
 }
@@ -41,62 +43,81 @@ const InputGroup = styled.label`
 
 `;
 
-const initialState = new Schedule();
-initialState.steps.push(new Step());
-initialState.steps.push(new Step());
-
 export const CreateSchedule = () => {
-  const [schedule, setSchedule] = useState(initialState);
+  const initialState = new Schedule();
+  initialState.steps.push(new Step());
+  initialState.steps.push(new Step());
 
-  const saveSchedule = (event) => {
-    event.preventDefault();
+  const { register, control, handleSubmit } = useForm({ defaultValues: initialState });
+  const { fields, append, remove } = useFieldArray({ control, name: 'steps' });
+
+  const saveSchedule = (data) => {
+    save(toServiceSchema(data));
   };
 
-  const addStep = (event) => {
-    event.preventDefault();
-    schedule.steps.push(new Step());
-    setSchedule({ ...schedule });
-  };
+  const addStep = () => append(new Step());
 
   const removeStep = (event, index) => {
     event.preventDefault();
-    schedule.steps.splice(index, 1);
-    setSchedule({ ...schedule });
+    remove(index);
   };
 
   return (
-    <Form onSubmit={saveSchedule}>
+    <Form onSubmit={handleSubmit(saveSchedule)}>
       <label>
         <span>Name:</span>
         <input
           type='text'
-          value={schedule.name}
-          onChange={(e) => setSchedule({ ...schedule, name: e.target.value })}
+          name='name'
+          ref={register}
           autoComplete='off'
         />
       </label>
-      <input placeholder='description' />
-      <div>
+      <label>
+        <span>Description:</span>
+        <input
+          type='text'
+          name='description'
+          ref={register}
+          autoComplete='off'
+        />
+      </label>
+      <fieldset>
         {Object.values(TEMPERATURE_SCALE).map(s => {
           return (
             <label key={s}>
               {s}:
-              <input type='radio' name={s} value={s}></input>
+              <input name='scale' ref={register()} type='radio' value={s}></input>
             </label>);
         })}
-      </div>
+      </fieldset>
       
-      {(schedule.steps.map((step, i) => (
-        <div key={i}>
+      {(fields.map((step, i) => (
+        <div key={step.id}>
           <button onClick={(e) => removeStep(e, i)}>-</button>
-          <select>
-            <option>rate</option>
-            <option>duration</option>
+          <select name={`steps[${i}].type`} ref={register()} defaultValue={step.type}>
+            <option value={STEP_TYPE.RATE}>rate</option>
+            <option value={STEP_TYPE.DURATION}>duration</option>
           </select>
-          <input type='number' placeholder='start' value={step.startTemperature} />
-          <input type='number' placeholder='end' value={step.endTemperature}/>
-          <input type='number' placeholder='0.0' />
-          <select>
+          <input
+            name={`steps[${i}].startTemperature`}
+            defaultValue={step.startTemperature}
+            ref={register()}
+            type='number'
+          />
+          <input
+            name={`steps[${i}].endTemperature`}
+            defaultValue={step.endTemperature}
+            ref={register()}
+            type='number'
+          />
+          <input 
+            name={`steps[${i}].stepValue`}
+            type='number'
+            defaultValue={step.stepValue}
+            ref={register()}
+          />
+          <select name={`steps[${i}.unit]`} ref={register()} defaultValue={step.unit}>
             {Object.values(TIME_SCALE).map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>

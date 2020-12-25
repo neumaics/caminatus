@@ -1,6 +1,6 @@
 name: not enough steps
 description: you can't one or fewer steps in the list
-scale: Celcius
+scale: Celsius
 steps:
     - description: Get temperature up from ambient.
       start_temperature: 0
