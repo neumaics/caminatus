@@ -23,6 +23,11 @@ export const TIME_SECONDS = {
   [TIME_SCALE.SECOND]: 1,
 };
 
+export const STEP_TYPE = {
+  RATE: 'rate',
+  DURATION: 'duration',
+};
+
 export const durationToSeconds = (duration) => duration.value * TIME_SECONDS[duration.unit.toLowerCase()];
 export const rateToSeconds = (step) => {
   const delta = step.end_temperature - step.start_temperature;
@@ -58,3 +63,43 @@ const toGraph = (schedule) => {
 
   return norm;
 };
+
+export const toServiceSchema = (clientSchedule) => {
+  const service = {
+    name: clientSchedule.name,
+    description: clientSchedule.description || '',
+    scale: clientSchedule.scale,
+    steps: []
+  };
+
+  clientSchedule.steps.reduce((acc, step) => {
+    const s = {
+      description: step.description || '',
+      start_temperature: parseFloat(step.startTemperature),
+      end_temperature: parseFloat(step.endTemperature),
+      rate: null,
+      duration: null,
+    };
+
+    if (step.type === STEP_TYPE.DURATION) {
+      s.rate = { unit: step.unit, value: parseInt(step.stepValue, 10) };
+    } else if (step.type === STEP_TYPE.RATE) {
+      s.duration = { unit: step.unit, value: parseInt(step.stepValue, 10) };
+    }
+    
+    acc.push(s);
+    return acc;
+  }, service.steps);
+
+  return service;
+};
+
+export const save = (schedule) => 
+  fetch('http://localhost:8080/schedules', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(schedule)
+  })
+    .then(response => response.json());

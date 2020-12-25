@@ -1,6 +1,6 @@
 name: slow bisque
 description: drive off all of the moisture before rateing up
-scale: Celcius
+scale: Celsius
 steps:
     - description: Get temperature up from ambient.
       start_temperature: 0
