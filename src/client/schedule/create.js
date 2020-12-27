@@ -28,12 +28,24 @@ const Form = styled.form`
   display: grid;
 `;
 
+// Adapted from https://richjenks.com/filename-regex/
+const VALID_NAME_PATTERN = /^(?!.{256,})(?!(aux|clock\$|con|nul|prn|com[1-9]|lpt[1-9])(?:$|\.))[^ /\\][ \.\w-$()+=;#@~,&amp;']*[^\. \\\/]$/; 
+
+/**
+ * @todo add configurable max temperature.
+ */
 export const CreateSchedule = () => {
   const initialState = new Schedule();
   initialState.steps.push(new Step());
   initialState.steps.push(new Step());
 
-  const { register, control, handleSubmit, watch } = useForm({ defaultValues: initialState });
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    errors,
+  } = useForm({ defaultValues: initialState });
   const { fields, append, remove } = useFieldArray({ control, name: 'steps' });
 
   const saveSchedule = (data) => {
@@ -54,18 +66,23 @@ export const CreateSchedule = () => {
         <input
           type='text'
           name='name'
-          ref={register({ required: true, maxLength: 40, minLength: 2 })}
+          ref={register({ required: true, maxLength: 40, minLength: 1, pattern: VALID_NAME_PATTERN })}
           autoComplete='off'
         />
+        {errors.name && errors.name.type === 'required' ? <span>required</span> : <span></span>}
+        {errors.name && errors.name.type === 'maxLength' ? <span>name exceeds maximum length (40)</span> : <span></span>}
+        {errors.name && errors.name.type === 'minLength' ? <span>name is too short (must be more than 1 character)</span> : <span></span>}
+        {errors.name && errors.name.type === 'pattern' ? <span>name contains invalid characters</span> : <span></span>}
       </label>
       <label>
         <span>Description:</span>
         <input
           type='text'
           name='description'
-          ref={register}
+          ref={register({ maxLength: 512 })}
           autoComplete='off'
         />
+        {errors.description && errors.description.type === 'maxLength' ? <span>exceeds maximum length (512)</span> : <span></span>}
       </label>
       <fieldset>
         {Object.values(TEMPERATURE_SCALE).map(s => {
@@ -85,19 +102,23 @@ export const CreateSchedule = () => {
             <input
               name={`steps[${i}].startTemperature`}
               defaultValue={step.startTemperature}
-              ref={register()}
+              ref={register({ required: true, min: 0, max: 1400 })}
               type='number'
               step='0.01'
               min='0'
             />
+            { errors.steps && errors.steps[i] && errors.steps[i].startTemperature.type === 'min' && <span>must be greater than 0</span> }
+            { errors.steps && errors.steps[i] && errors.steps[i].startTemperature.type === 'max' && <span>must be less than 1400</span> }
             <input
               name={`steps[${i}].endTemperature`}
               defaultValue={step.endTemperature}
-              ref={register()}
+              ref={register({ required: true, min: 0, max: 1400})}
               type='number'
               step='0.01'
               min='0'
             />
+            { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span> }
+            { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'max' && <span>must be less than 1400</span> }
             <select name={`steps[${i}].type`} ref={register()} defaultValue={step.type}>
               <option value={STEP_TYPE.RATE}>by</option>
               <option value={STEP_TYPE.DURATION}>over</option>
@@ -106,12 +127,13 @@ export const CreateSchedule = () => {
               name={`steps[${i}].stepValue`}
               type='number'
               defaultValue={step.stepValue}
-              ref={register()}
+              ref={register({ required: true, min: 0 })}
               min='0'
               step='1'
             />
+            { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span> }
             {watchType[i].type === STEP_TYPE.RATE ? <span>per</span> : <span></span>}
-            <select name={`steps[${i}.unit]`} ref={register()} defaultValue={step.unit}>
+            <select name={`steps[${i}.unit]`} ref={register({ required: true })} defaultValue={step.unit}>
               {Object.values(TIME_SCALE).map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>); }
