@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useForm, useFieldArray } from 'react-hook-form';
 
 import { TEMPERATURE_SCALE, TIME_SCALE, STEP_TYPE, toServiceSchema, save } from './common';
+import { FormButton } from '../components';
 
 function Schedule() {
   this.name = '';
@@ -31,6 +32,7 @@ const Form = styled.form`
 // Adapted from https://richjenks.com/filename-regex/
 const VALID_NAME_PATTERN = /^(?!.{256,})(?!(aux|clock\$|con|nul|prn|com[1-9]|lpt[1-9])(?:$|\.))[^ /\\][ \.\w-$()+=;#@~,&amp;']*[^\. \\\/]$/; 
 
+const hasError = (errors, i, field, type) => errors.steps && errors.steps[i] && errors.steps[i][field].type === type;
 /**
  * @todo add configurable max temperature.
  */
@@ -98,7 +100,7 @@ export const CreateSchedule = () => {
         const watchType = watch('steps', STEP_TYPE.DURATION);
         return (
           <div key={step.id}>
-            <button onClick={(e) => removeStep(e, i)}>-</button>
+            <FormButton type='button' inverted={true} context='error' onClick={(e) => removeStep(e, i)}>-</FormButton>
             <input
               name={`steps[${i}].startTemperature`}
               defaultValue={step.startTemperature}
@@ -107,8 +109,8 @@ export const CreateSchedule = () => {
               step='0.01'
               min='0'
             />
-            { errors.steps && errors.steps[i] && errors.steps[i].startTemperature.type === 'min' && <span>must be greater than 0</span> }
-            { errors.steps && errors.steps[i] && errors.steps[i].startTemperature.type === 'max' && <span>must be less than 1400</span> }
+            {hasError(errors, i, 'startTemperature', 'min') && <span>must be greater than 0</span> }
+            {hasError(errors, i, 'startTemperature', 'max') && <span>must be less than 1400</span> }
             <input
               name={`steps[${i}].endTemperature`}
               defaultValue={step.endTemperature}
@@ -131,15 +133,15 @@ export const CreateSchedule = () => {
               min='0'
               step='1'
             />
-            { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span> }
+            {errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span>}
             {watchType[i].type === STEP_TYPE.RATE ? <span>per</span> : <span></span>}
             <select name={`steps[${i}.unit]`} ref={register({ required: true })} defaultValue={step.unit}>
               {Object.values(TIME_SCALE).map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>); }
       )}
-      <button onClick={addStep}>+</button>
-      <input type='submit'></input>
+      <FormButton inverted={true} context='default' onClick={addStep}>+</FormButton>
+      <FormButton context='default' type='submit'>Save</FormButton>
     </Form>
   );
 };
