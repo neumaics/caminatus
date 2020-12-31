@@ -3,6 +3,13 @@ import PropTypes from 'prop-types';
 
 import styled from 'styled-components';
 
+const colors = {
+  default: '#3498DB',
+  error: '#E74C3C',
+  warn: '#F1C40F',
+  success: '#2ECC71',
+};
+
 const Button = () => <button></button>;
 
 export const StyledButton = styled(Button)`
@@ -13,7 +20,6 @@ export const LinkButton = styled.a`
 `;
 
 const FormButtonDefault = (props) => {
-  console.log(props);
   return (<button
     type={props.type}
     onClick={props.onClick}
@@ -26,7 +32,7 @@ const FormButtonDefault = (props) => {
 FormButtonDefault.propTypes = {
   className: PropTypes.string,
   children: PropTypes.node,
-  context: PropTypes.oneOf(['default', 'error', 'warn', 'success']),
+  context: PropTypes.oneOf(Object.keys(colors)),
   inverted: PropTypes.bool,
   onClick: PropTypes.func,
   type: PropTypes.oneOf(['button', 'submit']),
@@ -36,13 +42,6 @@ FormButtonDefault.defaultProps = {
   context: 'default',
   inverted: false,
   type: 'button',
-};
-
-const colors = {
-  default: '#3498DB',
-  error: '#E74C3C',
-  warn: '#F1C40F',
-  success: '#2ECC71',
 };
 
 export const FormButton = styled(FormButtonDefault)`
@@ -66,8 +65,9 @@ export const FormButton = styled(FormButtonDefault)`
   padding: 0.25em 0.75em;
   min-width: 0;
   min-height: 32px;
+  margin: 0 4px;
 
   text-align: center;
   line-height: 1.1;
-  font-size: 18px;
+  font-size: 16px;
 `;

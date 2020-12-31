@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { Link, useRoute } from 'wouter';
 
@@ -30,7 +31,7 @@ const NavLink = styled.a`
 `;
 
 const NavBarLink = (props) => {
-  const [_match, params] = useRoute(`${props.href}/:rest*`);
+  const params = useRoute(`${props.href}/:rest*`)[1];
   const isActive = params !== null;
 
   return (
@@ -38,6 +39,11 @@ const NavBarLink = (props) => {
       <NavLink selected={isActive}>{props.children}</NavLink>
     </Link>
   );
+};
+
+NavBarLink.propTypes = {
+  children: PropTypes.node,
+  href: PropTypes.string,
 };
 
 export const Nav = () => (
