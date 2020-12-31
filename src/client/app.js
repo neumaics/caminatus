@@ -15,7 +15,7 @@ const Container = styled.div`
 `;
 
 const Content = styled.div`
-  grid-column-start: 2 / 2;
+  display: flex;
   margin: 1em;
   overflow-y: scroll;
 `;
