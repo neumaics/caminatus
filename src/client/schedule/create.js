@@ -33,6 +33,11 @@ const FormContainer = styled.div`
   background-color: #51595E;
   border-radius: 0.5em;
   padding: 0.5em 1em;
+  width: 100%;
+
+  > form {
+    width: 100%;
+  }
 `;
 
 const FormField = styled.label`
@@ -49,7 +54,6 @@ const FormField = styled.label`
 
 // https://markheath.net/post/customize-radio-button-css
 const TemperatureScaleSelect = styled.fieldset`
-  margin: ${props => {console.log(props); return 0; }};
   border: none;
   padding: inherit;
   
@@ -64,6 +68,7 @@ const TemperatureScaleSelect = styled.fieldset`
     font-size: 16px;
     border: 2px solid transparent;
     border-radius: 0.5em;
+    margin: 0 0.25em 0.25em 0.25em;
   }
 
   > input[type='radio'] {
@@ -78,6 +83,27 @@ const TemperatureScaleSelect = styled.fieldset`
 
     &:focus + label {
       border: 2px dashed: 444;
+    }
+  }
+`;
+
+const StepContainer = styled.div`
+  display: block;
+
+  > div {
+    display: flex;
+    margin: 0.25em 0 0.25em 1em;
+
+    > input[type='number'] {
+      width: 12ch;
+      border-radius: 0.5em;
+      border: 2px solid transparent;
+      margin: 0 0.25em;
+
+    }
+
+    > select {
+      border-radius: 0.5em;
     }
   }
 `;
@@ -150,50 +176,52 @@ export const CreateSchedule = () => {
           })}
         </TemperatureScaleSelect>
         
-        {fields.map((step, i) => {
-          const watchType = watch('steps', STEP_TYPE.DURATION);
-          return (
-            <div key={step.id}>
-              <FormButton type='button' inverted={true} context='error' onClick={(e) => removeStep(e, i)}>-</FormButton>
-              <input
-                name={`steps[${i}].startTemperature`}
-                defaultValue={step.startTemperature}
-                ref={register({ required: true, min: 0, max: 1400 })}
-                type='number'
-                step='0.01'
-                min='0'
-              />
-              {hasError(errors, i, 'startTemperature', 'min') && <span>must be greater than 0</span> }
-              {hasError(errors, i, 'startTemperature', 'max') && <span>must be less than 1400</span> }
-              <input
-                name={`steps[${i}].endTemperature`}
-                defaultValue={step.endTemperature}
-                ref={register({ required: true, min: 0, max: 1400})}
-                type='number'
-                step='0.01'
-                min='0'
-              />
-              { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span> }
-              { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'max' && <span>must be less than 1400</span> }
-              <select name={`steps[${i}].type`} ref={register()} defaultValue={step.type}>
-                <option value={STEP_TYPE.RATE}>by</option>
-                <option value={STEP_TYPE.DURATION}>over</option>
-              </select>
-              <input 
-                name={`steps[${i}].stepValue`}
-                type='number'
-                defaultValue={step.stepValue}
-                ref={register({ required: true, min: 0 })}
-                min='0'
-                step='1'
-              />
-              {errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span>}
-              {watchType[i].type === STEP_TYPE.RATE ? <span>per</span> : <span></span>}
-              <select name={`steps[${i}.unit]`} ref={register({ required: true })} defaultValue={step.unit}>
-                {Object.values(TIME_SCALE).map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>); }
-        )}
+        <StepContainer>
+          {fields.map((step, i) => {
+            const watchType = watch('steps', STEP_TYPE.DURATION);
+            return (
+              <div key={step.id}>
+                <FormButton type='button' inverted={true} context='error' onClick={(e) => removeStep(e, i)}>-</FormButton>
+                <input
+                  name={`steps[${i}].startTemperature`}
+                  defaultValue={step.startTemperature}
+                  ref={register({ required: true, min: 0, max: 1400 })}
+                  type='number'
+                  step='0.01'
+                  min='0'
+                />
+                {/* {hasError(errors, i, 'startTemperature', 'min') && <span>must be greater than 0</span> }
+                {hasError(errors, i, 'startTemperature', 'max') && <span>must be less than 1400</span> } */}
+                <input
+                  name={`steps[${i}].endTemperature`}
+                  defaultValue={step.endTemperature}
+                  ref={register({ required: true, min: 0, max: 1400})}
+                  type='number'
+                  step='0.01'
+                  min='0'
+                />
+                {/* { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span> }
+                { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'max' && <span>must be less than 1400</span> } */}
+                <select name={`steps[${i}].type`} ref={register()} defaultValue={step.type}>
+                  <option value={STEP_TYPE.RATE}>by</option>
+                  <option value={STEP_TYPE.DURATION}>over</option>
+                </select>
+                <input 
+                  name={`steps[${i}].stepValue`}
+                  type='number'
+                  defaultValue={step.stepValue}
+                  ref={register({ required: true, min: 0 })}
+                  min='0'
+                  step='1'
+                />
+                {/* {errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span>} */}
+                {watchType[i].type === STEP_TYPE.RATE ? <span>per</span> : <span></span>}
+                <select name={`steps[${i}.unit]`} ref={register({ required: true })} defaultValue={step.unit}>
+                  {Object.values(TIME_SCALE).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>); }
+          )}
+        </StepContainer>
         <FormButton inverted={true} context='default' onClick={addStep}>+</FormButton>
         <div></div>
         <FormButton context='default' type='submit'>Save</FormButton>
