@@ -9,6 +9,9 @@ use uuid::Uuid;
 mod error;
 pub use error::ScheduleError;
 
+mod parser;
+pub use parser::{ Duration, Rate, TimeUnit, Step, NormalizedStep };
+
 const SCHEDULES_DIRECTORY: &str = "./schedules";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -16,47 +19,6 @@ pub enum TemperatureScale {
     Celsius,
     Fahrenheit,
     Kelvin,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum TimeUnit {
-    #[serde(alias = "Hour")]
-    #[serde(alias = "hour")]
-    #[serde(alias = "hours")]
-    Hours = 3600,
-
-    #[serde(alias = "Minute")]
-    #[serde(alias = "minute")]
-    #[serde(alias = "minutes")]
-    Minutes = 60,
-
-    #[serde(alias = "Second")]
-    #[serde(alias = "second")]
-    #[serde(alias = "seconds")]
-    Seconds = 1,
-}
-
-// TODO: use std::time::Duration
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Duration {
-    pub value: u32,
-    pub unit: TimeUnit
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate {
-    pub value: u16,
-    pub unit: TimeUnit
-}
-
-// TODO: Add optional hold period.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Step {
-    description: Option<String>,
-    start_temperature: f64,
-    end_temperature: f64,
-    duration: Option<Duration>,
-    rate: Option<Rate>
 }
 
 /// Variant of the Schedule, but is normalized to cumulative seconds
@@ -68,13 +30,6 @@ pub struct NormalizedSchedule {
     pub steps: Vec<NormalizedStep>,   
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-pub struct NormalizedStep {
-    start_time: u32,
-    end_time: u32,
-    start_temperature: f64,
-    end_temperature: f64,
-}
 
 /// Human understandable schedule, without normalizations for processing.
 #[derive(Clone, Debug, Serialize, Deserialize)]

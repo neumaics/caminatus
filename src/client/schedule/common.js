@@ -69,7 +69,7 @@ export const toServiceSchema = (clientSchedule) => {
     name: clientSchedule.name,
     description: clientSchedule.description || '',
     scale: clientSchedule.scale,
-    steps: []
+    steps: [],
   };
 
   clientSchedule.steps.reduce((acc, step) => {

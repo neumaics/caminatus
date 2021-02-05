@@ -22,4 +22,4 @@
         "quotes": ["error", "single", { "allowTemplateLiterals": true }],
         "indent": ["error", 2]
     }
-}
+} 
