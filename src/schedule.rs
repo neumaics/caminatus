@@ -30,7 +30,6 @@ pub struct NormalizedSchedule {
     pub steps: Vec<NormalizedStep>,   
 }
 
-
 /// Human understandable schedule, without normalizations for processing.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Schedule {
