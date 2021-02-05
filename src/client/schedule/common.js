@@ -66,10 +66,10 @@ const toGraph = (schedule) => {
 
 export const toServiceSchema = (clientSchedule) => {
   const service = {
+    name: clientSchedule.name,
     description: clientSchedule.description || '',
-    name: clientSchedule.name,    
     scale: clientSchedule.scale,
-    steps: [],
+    steps: []
   };
 
   clientSchedule.steps.reduce((acc, step) => {
