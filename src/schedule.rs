@@ -9,6 +9,9 @@ use uuid::Uuid;
 mod error;
 pub use error::ScheduleError;
 
+mod parser;
+pub use parser::{ Duration, Rate, TimeUnit, Step, NormalizedStep };
+
 const SCHEDULES_DIRECTORY: &str = "./schedules";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -18,35 +21,13 @@ pub enum TemperatureScale {
     Kelvin,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum TimeUnit {
-    #[serde(alias = "Hour")]
-    #[serde(alias = "hour")]
-    #[serde(alias = "hours")]
-    Hours = 3600,
-
-    #[serde(alias = "Minute")]
-    #[serde(alias = "minute")]
-    #[serde(alias = "minutes")]
-    Minutes = 60,
-
-    #[serde(alias = "Second")]
-    #[serde(alias = "second")]
-    #[serde(alias = "seconds")]
-    Seconds = 1,
-}
-
-// TODO: use std::time::Duration
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Duration {
-    pub value: u32,
-    pub unit: TimeUnit
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate {
-    pub value: u16,
-    pub unit: TimeUnit
+/// Variant of the Schedule, but is normalized to cumulative seconds
+#[derive(Debug, Deserialize)]
+pub struct NormalizedSchedule {
+    pub name: String,
+    pub description: Option<String>,
+    pub scale: TemperatureScale,
+    pub steps: Vec<NormalizedStep>,   
 }
 
 // TODO: Add optional hold period.

@@ -21,9 +21,7 @@ RUN apt-get update \
     # Install lldb, vadimcn.vscode-lldb VSCode extension dependencies
     && apt-get install -y lldb python3-minimal libpython3.7 \
     #
-    # # Install zsh and oh my zsh
-    # && apt-get install -y zsh \
-    # && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
+    # # Install fish
     && apt-get install -y fish \
     #
     ## Install Node libraries
