@@ -133,11 +133,11 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
 
     info!("client connecting");
     let (tx, rx) = mpsc::unbounded_channel();
-    let forwarder = task::spawn(rx.forward(user_ws_tx).map(|result| {
-        if let Err(e) = result {
-            error!("websocket send error: {}", e);
-        }
-    }));
+    // let forwarder = task::spawn(rx.forward(user_ws_tx).map(|result| {
+    //     if let Err(e) = result {
+    //         error!("websocket send error: {}", e);
+    //     }
+    // }));
 
     let cmd_tx = tx.clone();
     let command_reader = task::spawn(async move {
@@ -182,7 +182,7 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
         let _ = on_disconnect();
     });
 
-    join!(command_reader, forwarder);
+    join!(command_reader /* , forwarder*/);
 }
 
 async fn on_disconnect() {

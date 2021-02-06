@@ -11,8 +11,23 @@ pub struct Monitor {
     pub name: &'static str,
 }
 
+pub enum ScheduleEvent {
+    Start,
+    Stop,
+    Failure(String),
+}
+
+pub enum State {
+    Idle,
+    Running
+}
+pub enum ScheduleError {
+
+}
+
+// todo: repurpose into schedule runner
 impl Monitor {
-    pub async fn start(interval: u32, channel: Sender<Command>) -> Result<Monitor, String> {
+    pub async fn start(interval: u32, channel: Sender<Command>) -> Result<Monitor, ScheduleError> {
         let name = "ping";
         let _ = channel.clone().send(Command::Register { channel: name.to_string() });
 

@@ -8,7 +8,7 @@ use rsfuzzy::*;
 use tokio::{join, task, time};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Sender, Receiver};
-use tokio::time::delay_for;
+use tokio::time::sleep;
 use tracing::{info, debug};
 use uuid::Uuid;
 
@@ -71,7 +71,7 @@ impl Kiln {
                     KilnState::Running => {
                         heater.on();
                         heater.off();
-                        delay_for(Duration::from_millis(interval as u64)).await;
+                        sleep(Duration::from_millis(interval as u64)).await;
                     } ,
                     KilnState::Idle => {
                         wait_interval.tick().await;
