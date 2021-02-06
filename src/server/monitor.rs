@@ -2,7 +2,7 @@
 use std::time::{Duration};
 
 use tokio::{join, time};
-use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::broadcast::Sender;
 
 use crate::server::Command;
 
@@ -14,7 +14,6 @@ pub struct Monitor {
 pub enum ScheduleEvent {
     Start,
     Stop,
-    Failure(String),
 }
 
 pub enum State {
@@ -39,7 +38,8 @@ impl Monitor {
             }
         });
 
-        join!(handle);
+        // todo: use value
+        let _ = join!(handle);
 
         Ok(Monitor {
             name: name

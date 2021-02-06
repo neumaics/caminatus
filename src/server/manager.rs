@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use tokio::sync::{broadcast, mpsc};
-use tokio::sync::mpsc::{Sender, Receiver, UnboundedSender};
+use tokio::sync::broadcast;
+use tokio::sync::mpsc::{Sender, UnboundedSender};
 
 use tokio::join;
 use tracing::{debug, event, info, error, Level, trace};
@@ -13,7 +13,7 @@ use warp::Error;
 
 use crate::config::Config;
 use crate::server::{Monitor, Command, Web};
-use crate::device::Kiln;
+// use crate::device::Kiln;
 
 type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
 type InternalSubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, Sender<Command>)>>>>;
@@ -41,7 +41,8 @@ impl Manager {
             let _ = Manager::process_commands(b_rx, subscriptions, internal, services).await;
         });
 
-        join!(web, monitor1);
+        // todo: use value of join
+        let _ = join!(web, monitor1);
 
         Ok(Manager {
             sender: b_tx,
@@ -52,7 +53,7 @@ impl Manager {
         mut receiver: broadcast::Receiver<Command>,
         subscriptions: SubscriptionList,
         internal: InternalSubscriptionList,
-        services: ServiceList
+        _services: ServiceList
     ) -> Result<()> {
         while let Ok(command) = receiver.recv().await {
             match command {
@@ -133,7 +134,7 @@ impl Manager {
                     }
                 },
                 Command::Start { schedule, simulate } => {
-
+                    debug!("schedule: {}, simulate: {}", schedule.name, simulate);
                 },
                 Command::Unknown { input } => {
                     error!("unknown command received {}. ignoring", input);

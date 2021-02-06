@@ -1,9 +1,9 @@
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use serde_json;
 use tokio::{task, join};
 use tokio::sync::mpsc;
 use tokio::sync::broadcast::Sender;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 use uuid::Uuid;
 use warp::ws::{WebSocket};
 use warp::{filters::BoxedFilter, Filter, Reply, http::Response};
@@ -128,11 +128,11 @@ impl Web {
 
 async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
     let id = Uuid::new_v4();
-    let (user_ws_tx, mut user_ws_rx) = ws.split();
+    let (/*user_ws_tx*/ _ , mut user_ws_rx) = ws.split();
     let copy2 = manager.clone();
 
     info!("client connecting");
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (tx, _rx) = mpsc::unbounded_channel();
     // let forwarder = task::spawn(rx.forward(user_ws_tx).map(|result| {
     //     if let Err(e) = result {
     //         error!("websocket send error: {}", e);
@@ -182,7 +182,8 @@ async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
         let _ = on_disconnect();
     });
 
-    join!(command_reader /* , forwarder*/);
+    // todo: use value of join.
+    let _ = join!(command_reader /* , forwarder*/);
 }
 
 async fn on_disconnect() {

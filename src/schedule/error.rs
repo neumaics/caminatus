@@ -31,7 +31,7 @@ impl From<serde_yaml::Error> for ScheduleError {
 }
 
 impl From<serde_json::Error> for ScheduleError {
-    fn from(error: serde_json::Error) -> ScheduleError {
+    fn from(_error: serde_json::Error) -> ScheduleError {
         ScheduleError::InvalidJson { }
     }
 }

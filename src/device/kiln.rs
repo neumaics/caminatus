@@ -2,23 +2,33 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
-use serde_json;
 use serde::Serialize;
 use rsfuzzy::*;
 use tokio::{join, task, time};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Sender, Receiver};
 use tokio::time::sleep;
-use tracing::{info, debug};
+use tracing::{info};
 use uuid::Uuid;
 
 use crate::schedule::Schedule;
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
 
+#[derive(Copy, Clone, Debug)]
 pub enum KilnState {
     Idle,
     Running,
+}
+
+pub enum KilnEvent {
+    Start,
+    Started,
+    Stop,
+    Stopped,
+    Unchanged,
+    Failure(String),
+    Update
 }
 
 #[derive(Serialize)]
@@ -31,8 +41,8 @@ pub struct KilnUpdate {
 pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
-    pub sender: Sender<Command>,
-    receiver: Receiver<Command>,
+    pub sender: Sender<KilnEvent>,
+    receiver: Receiver<KilnEvent>,
     thermocouple_address: u16, // 0x60
     heater_pin: u8,
     schedule: Option<Schedule>,
@@ -45,29 +55,55 @@ impl Kiln {
         let (tx, rx) = mpsc::channel(32);
 
         Ok(Kiln {
-            id: id,
+            id,
             state: KilnState::Idle,
             sender: tx,
             receiver: rx,
-            thermocouple_address: thermocouple_address,
-            heater_pin: heater_pin,
+            thermocouple_address,
+            heater_pin,
             schedule: None,
         })
     }
 
-    pub async fn start(self, interval: u32, mut manager_sender: Sender<Command>) -> Result<()> {
+    fn update_state(current_state: KilnState, event: Option<KilnEvent>) -> KilnState {
+        match event {
+            Some(KilnEvent::Start) => Kiln::start_schedule(current_state),
+            Some(KilnEvent::Stop) => Kiln::stop_schedule(current_state),
+            _ => current_state,
+        }
+    }
+
+    fn start_schedule(current_state: KilnState) -> KilnState {
+        info!("starting");
+       current_state
+    }
+
+    fn stop_schedule(current_state: KilnState) -> KilnState {
+        info!("stopping");
+        current_state
+    }
+
+    pub async fn start(self, interval: u32, manager_sender: Sender<Command>) -> Result<()> {
         let channel = "kiln";
-        let update_tx = manager_sender.clone();
+        let _update_tx = manager_sender.clone();
 
         let updater = task::spawn(async move {
             let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(self.thermocouple_address).unwrap();
             let mut heater = Heater::new(self.heater_pin).unwrap();
-
+            let mut rx = self.receiver;
+            let mut state = self.state;
+            // let mut update: (Option<KilnEvent>) -> KilnEvent = Kiln::update_state;
+    
             loop {
-                let temperature = &thermocouple.read().unwrap();
-                
-                match self.state {
+                let _temperature = &thermocouple.read().unwrap();
+                let maybe_update = rx.recv().await;
+                let new_state = Kiln::update_state(state, maybe_update);
+
+                state = new_state;
+                info!("current state {:?}", state);
+
+                match new_state {
                     KilnState::Running => {
                         heater.on();
                         heater.off();
@@ -76,6 +112,7 @@ impl Kiln {
                     KilnState::Idle => {
                         wait_interval.tick().await;
                     },
+                    
                 };
             }
         });
@@ -84,11 +121,6 @@ impl Kiln {
         let _ = join!(updater, register);
 
         Ok(())
-    }
-
-    pub fn start_schedule(&mut self, schedule: Schedule) {
-        self.state = KilnState::Running;
-        self.schedule = Some(schedule);
     }
 }
 
