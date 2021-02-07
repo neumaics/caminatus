@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<!-- Adapted from -->
+<!-- https://github.com/seanmonstar/warp/blob/master/examples/sse_chat.rs -->
+<html>
+  <head>
+    <title>Caminatus SSE</title>
+  </head>
+  <body>
+    <div id="chat">
+      <p><em>Connecting...</em></p>
+    </div>
+    <input type="text" id="text" />
+    <button type="button" id="send">Send</button>
+    <script type="text/javascript">
+      const uri = `http://${location.host}/connect`;
+      let user_id;
+
+      const sse = new EventSource(uri);
+      const message = (data) => {
+        const line = document.createElement('p');
+        line.innerText = data;
+        chat.appendChild(line);
+      };
+
+      sse.onopen = () => chat.innerHTML = "<p><em>Connected!</em></p>";        
+      sse.addEventListener("update", (msg) => user_id = msg.data);
+      sse.onmessage = (msg) => message(msg.data);
+    </script>
+  </body>
+</html>

@@ -1,14 +1,15 @@
-use futures::StreamExt;
+use std::time::Duration;
+
+use futures::{Stream, StreamExt};
 use serde_json;
-use tokio::{task, join};
 use tokio::sync::mpsc;
 use tokio::sync::broadcast::Sender;
-use tracing::{debug, info};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
-use warp::ws::{WebSocket};
+use warp::sse::Event;
 use warp::{filters::BoxedFilter, Filter, Reply, http::Response};
 
-use crate::server::{Command, Api};
+use crate::server::{Message, Command};
 use crate::config::Config;
 use crate::schedule::{Schedule, ScheduleError};
 
@@ -19,13 +20,6 @@ impl Web {
         let manager = warp::any().map(move || manager_sender.clone());
 
         let _ = tokio::spawn(async move {
-            let ws = warp::path("ws")
-                .and(warp::ws())
-                .and(manager)
-                .map(|ws: warp::ws::Ws, manager: Sender<Command>| {
-                    ws.on_upgrade(move |socket| on_connect(manager, socket))
-                });
-
             let public = warp::path("public")
                 .and(warp::fs::dir("public"));
 
@@ -34,14 +28,26 @@ impl Web {
 
             let index = warp::path::end()
                 .and(warp::filters::fs::file("public/index.html"));
+
             let js = warp::path("bundle.js")
                 .and(warp::filters::fs::file("public/bundle.js"));
+            
+            let connect = warp::path("connect")
+                .and(warp::get())
+                .and(manager)
+                .map(|manager: Sender<Command>| {
+                    let stream = warp::sse::keep_alive()
+                        .interval(Duration::from_secs(5))
+                        .text("buump".to_string())
+                        .stream(on_connect(manager));
+                    warp::sse::reply(stream)
+                });
 
-            let routes = ws
-                .or(index)
+            let routes = index
                 .or(js)
                 .or(public)
                 .or(app)
+                .or(connect)
                 .or(Web::schedule_routes(Some("./schedules".to_string())));
 
             warp::serve(routes)
@@ -126,68 +132,19 @@ impl Web {
     }
 }
 
-async fn on_connect(manager: Sender<Command>, ws: WebSocket) {
+fn on_connect(manager: Sender<Command>) -> impl Stream<Item = Result<Event, warp::Error>> + Send + 'static {
     let id = Uuid::new_v4();
-    let (/*user_ws_tx*/ _ , mut user_ws_rx) = ws.split();
-    let copy2 = manager.clone();
+    let (tx, rx) = mpsc::unbounded_channel();
+    let rx = UnboundedReceiverStream::new(rx);
+    
+    tx.send(Message::UserId(id)).unwrap();
 
-    info!("client connecting");
-    let (tx, _rx) = mpsc::unbounded_channel();
-    // let forwarder = task::spawn(rx.forward(user_ws_tx).map(|result| {
-    //     if let Err(e) = result {
-    //         error!("websocket send error: {}", e);
-    //     }
-    // }));
+    let _ = manager.send(Command::Subscribe { channel: "ping".to_string(), id, sender: tx });
 
-    let cmd_tx = tx.clone();
-    let command_reader = task::spawn(async move {
-        let directory = "./schedules".to_string();
-
-        while let Some(result) = user_ws_rx.next().await {
-            debug!("{:?}", result);
-            let message = match result {
-                Ok(message) => message,
-                Err(error) => {
-                    debug!("{:?}", error);
-                    break;
-                }
-            };
-            
-            if message.to_str().is_ok() {
-                let api: Api = Api::from(message.to_str().unwrap());
-
-                let command = match api {
-                    Api::Schedules => Command::Unknown { input: "schedules".to_string() },
-                    Api::Subscribe { channel } => Command::Subscribe {
-                        channel: channel,
-                        id: id,
-                        sender: cmd_tx.clone()
-                    },
-                    Api::Unsubscribe { channel } => Command::Unsubscribe {
-                        channel: channel,
-                        id: id,
-                    },
-                    Api::Start { schedule_name } => Command::Forward {
-                        channel: "client".to_string(),
-                        cmd: Box::new(Command::Start {
-                            simulate: false,
-                            schedule: Schedule::by_name(&schedule_name, &directory).unwrap()
-                    })},
-                    Api::Unknown { input } => Command::Unknown { input: input },
-                };
-                let _ = copy2.send(command);
-            }
-        }
-
-        let _ = on_disconnect();
-    });
-
-    // todo: use value of join.
-    let _ = join!(command_reader /* , forwarder*/);
-}
-
-async fn on_disconnect() {
-    info!("client disconnecting");
+    rx.map(|msg| match msg {
+        Message::UserId(id) => Ok(Event::default().event("update").data(id.to_string())),
+        Message::Update(data) => Ok(Event::default().data(data)),
+    })
 }
 
 #[cfg(test)]
