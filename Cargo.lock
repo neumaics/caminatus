@@ -149,7 +149,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bitbang-hal",
- "bytes 0.5.6",
+ "bytes 1.0.1",
  "chrono",
  "embedded-hal",
  "futures",
@@ -161,6 +161,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber",
  "uuid",

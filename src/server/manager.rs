@@ -6,17 +6,14 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 
 use tokio::join;
-use tracing::{debug, event, info, error, Level, trace};
+use tracing::{debug, event, error, Level, trace};
 use uuid::Uuid;
-use warp::ws::Message;
-use warp::Error;
 
 use crate::config::Config;
-use crate::server::{Monitor, Command, Web};
+use crate::server::{Message, Monitor, Command, Web};
 // use crate::device::Kiln;
 
-type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Result<Message, Error>>)>>>>;
-type InternalSubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, Sender<Command>)>>>>;
+type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Message>)>>>>;
 type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
 
 #[derive(Debug, Clone)]
@@ -33,16 +30,15 @@ impl Manager {
         let web = Web::start(conf.clone(), b_tx.clone());
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
-        let internal = InternalSubscriptionList::default();
 
-        let monitor1 = Monitor::start(conf.poll_interval, b_tx.clone());
+        let monitor = Monitor::start(conf.poll_interval, b_tx.clone());
 
         tokio::task::spawn(async move {
-            let _ = Manager::process_commands(b_rx, subscriptions, internal, services).await;
+            let _ = Manager::process_commands(b_rx, subscriptions, services).await;
         });
 
         // todo: use value of join
-        let _ = join!(web, monitor1);
+        let _ = join!(web, monitor);
 
         Ok(Manager {
             sender: b_tx,
@@ -52,43 +48,25 @@ impl Manager {
     async fn process_commands(
         mut receiver: broadcast::Receiver<Command>,
         subscriptions: SubscriptionList,
-        internal: InternalSubscriptionList,
         _services: ServiceList
     ) -> Result<()> {
         while let Ok(command) = receiver.recv().await {
             match command {
-                Command::Forward { cmd, channel } => {
-                    let mut locked = internal.lock().unwrap();
-                    trace!("updating the [{}] channel with new data", channel);
-
-                    if locked.contains_key(&channel) {
-                        let subs = locked.get_mut(&channel).unwrap();
-
-                        for (_id, sender) in subs {
-                            trace!("updating the user [id {}] with new data", _id);
-                            let c = *cmd.clone();
-
-                            let _ = sender.send(c);
-                        }
-                    } else {
-                        trace!("attempting to update a channel that doesn't exist");
-                    }
-                }
                 Command::Subscribe { channel, id, sender } => {
-                    info!("subscribing to channel {}", channel);
+                    trace!("subscribing to channel {}", channel);
                     let mut locked = subscriptions.lock().unwrap();
                     let temp = sender.clone();
 
                     if locked.contains_key(&channel) {
                         let subs = locked.get_mut(&channel).unwrap();
                         subs.push((id, sender));
-                        let _ = temp.send(Ok(Message::text("success")));
+                        let _ = temp.send(Message::Update("success".to_string()));
                     } else {
-                        info!("attempting to subscribe to a channel that doesn't exist");
+                        trace!("attempting to subscribe to a channel that doesn't exist");
                     }                    
                 },
                 Command::Unsubscribe { channel, id } => {
-                    info!("unsubscribing to channel {}", channel);
+                    trace!("unsubscribing to channel {}", channel);
                     let mut locked = subscriptions.lock().unwrap();
 
                     if locked.contains_key(&channel) {
@@ -119,22 +97,16 @@ impl Manager {
                 },
                 Command::Update { channel, data } => {
                     let mut locked = subscriptions.lock().unwrap();
-                    debug!("updating the [{}] channel with new data", channel);
+                    trace!("updating the [{}] channel with new data", channel);
 
                     if locked.contains_key(&channel) {
-                        let subs = locked.get_mut(&channel).unwrap();
-
-                        for (_id, sender) in subs {
-                            debug!("updating the user [id {}] with new data", _id);
-                            
-                            let _ = sender.send(Ok(Message::text(data.clone())));
-                        }
+                        locked.get_mut(&channel).unwrap().retain(|(id, sender)| {
+                            trace!("updating the user [id {}] with new data", id);
+                            sender.send(Message::Update(data.clone())).is_ok()
+                        });
                     } else {
-                        debug!("attempting to update a channel that doesn't exist");
+                        error!("attempting to update a channel that doesn't exist");
                     }
-                },
-                Command::Start { schedule, simulate } => {
-                    debug!("schedule: {}, simulate: {}", schedule.name, simulate);
                 },
                 Command::Unknown { input } => {
                     error!("unknown command received {}. ignoring", input);
