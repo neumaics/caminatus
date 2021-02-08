@@ -17,7 +17,10 @@ pub struct Web { }
 
 impl Web {
     pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self, String> {
-        let manager = warp::any().map(move || manager_sender.clone());
+        let m1 = manager_sender.clone();
+        let m2 = manager_sender.clone();
+        let manager1 = warp::any().map(move || m1.clone());
+        let manager2 = warp::any().map(move || m2.clone());
 
         let _ = tokio::spawn(async move {
             let public = warp::path("public")
@@ -34,13 +37,25 @@ impl Web {
             
             let connect = warp::path("connect")
                 .and(warp::get())
-                .and(manager)
+                .and(manager1)
                 .map(|manager: Sender<Command>| {
                     let stream = warp::sse::keep_alive()
                         .interval(Duration::from_secs(5))
-                        .text("buump".to_string())
-                        .stream(on_connect(manager));
+                        .text("bump".to_string())
+                        .stream(on_connect(&manager));
                     warp::sse::reply(stream)
+                });
+
+            let subscribe = warp::path("subscribe")
+                .and(warp::post())
+                .and(manager2)
+                .and(warp::path::param())
+                .and(warp::path::param())
+                .map(|manager: Sender<Command>, id: String, channel: String| {
+                    let _ = manager.send(Command::Subscribe { channel: channel, id: Uuid::parse_str(&id).unwrap() });
+                    Response::builder()
+                        .status(warp::http::StatusCode::OK)
+                        .body("{}")
                 });
 
             let routes = index
@@ -48,6 +63,7 @@ impl Web {
                 .or(public)
                 .or(app)
                 .or(connect)
+                .or(subscribe)
                 .or(Web::schedule_routes(Some("./schedules".to_string())));
 
             warp::serve(routes)
@@ -132,18 +148,19 @@ impl Web {
     }
 }
 
-fn on_connect(manager: Sender<Command>) -> impl Stream<Item = Result<Event, warp::Error>> + Send + 'static {
+fn on_connect(manager: &Sender<Command>) -> impl Stream<Item = Result<Event, warp::Error>> + Send + 'static {
     let id = Uuid::new_v4();
     let (tx, rx) = mpsc::unbounded_channel();
     let rx = UnboundedReceiverStream::new(rx);
     
     tx.send(Message::UserId(id)).unwrap();
 
-    let _ = manager.send(Command::Subscribe { channel: "ping".to_string(), id, sender: tx });
+    let _ = manager.send(Command::ClientRegister { id, sender: tx });
+    let _ = manager.send(Command::Subscribe { channel: "ping".to_string(), id });
 
     rx.map(|msg| match msg {
-        Message::UserId(id) => Ok(Event::default().event("update").data(id.to_string())),
-        Message::Update(data) => Ok(Event::default().data(data)),
+        Message::UserId(id) => Ok(Event::default().event("system").data(id.to_string())),
+        Message::Update { channel, data } => Ok(Event::default().event(channel).data(data)),
     })
 }
 

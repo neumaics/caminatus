@@ -4,7 +4,10 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub enum Message {
     UserId(Uuid),
-    Update(String),
+    Update {
+        channel: String,
+        data: String
+    },
 }
 
 /// Internal Api
@@ -15,16 +18,20 @@ pub enum Command {
     Subscribe {
         channel: String,
         id: Uuid,
-        sender: UnboundedSender<Message>,
     },
 
     Unsubscribe {
         channel: String,
-        id: Uuid
+        id: Uuid,
     },
 
     Register {
         channel: String,
+    },
+
+    ClientRegister {
+        id: Uuid,
+        sender: UnboundedSender<Message>,
     },
 
     Update {
@@ -35,4 +42,6 @@ pub enum Command {
     Unknown {
         input: String,
     },
+
+    Ping,
 }

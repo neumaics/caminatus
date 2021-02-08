@@ -21,6 +21,7 @@ struct ConfigFile {
 struct WebConfigSection {
     pub port: u16,
     pub host_ip: String,
+    pub keep_alive_interval: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +36,7 @@ pub struct Config {
 pub struct WebConfig {
     pub port: u16,
     pub host_ip: Ipv4Addr,
+    pub keep_alive_interval: u32,
 }
 
 impl Config {
@@ -76,7 +78,8 @@ impl TryFrom<ConfigFile> for Config {
             log_level: value.log_level.unwrap_or(DEFAULT_LOG_LEVEL.to_string()),
             web: WebConfig {
                 port: value.web.port,
-                host_ip: host_ip,
+                host_ip,
+                keep_alive_interval: value.web.keep_alive_interval,
             },
             poll_interval: value.poll_interval.unwrap_or(1000), // TODO: enforce value greater than 0
             thermocouple_address: value.thermocouple_address
