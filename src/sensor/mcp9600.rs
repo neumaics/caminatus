@@ -42,56 +42,91 @@ const TOP_HALF_SIGN: u8 = 0x0F;
 // The Raw Data ADC register uses the first six bits of the upper byte as the sign.
 const _DATA_SIGN: u8 = 0x03;
 
-
-pub struct MCP9600 {
-    address: u16,
-    i2c: I2c
-}
-
-impl MCP9600 {
-    pub fn new(address: u16) -> Result<Self, ThermocoupleError> {
-        let mut i2c = I2c::new()?;
-        
-        match i2c.set_slave_address(address) {
-            Ok(_) => Ok(MCP9600 {
-                address,
-                i2c: i2c,
-            }),
-            Err(error) => Err(ThermocoupleError::I2CError { source: error })
-        }   
+#[cfg(target = "armv7-unknown-linux-gnueabihf")]
+mod real {
+    use super::*;
+    pub struct MCP9600 {
+        address: u16,
+        i2c: I2c
     }
 
-    pub fn read_internal(&mut self) -> Result<f64, ThermocoupleError> {
-        self.read_temperature(COLD_JUNCTION_TEMPERATURE, TOP_HALF_SIGN)
-    }
+    impl MCP9600 {
+        pub fn new(address: u16) -> Result<Self, ThermocoupleError> {
+            let mut i2c = I2c::new()?;
+            
+            match i2c.set_slave_address(address) {
+                Ok(_) => Ok(MCP9600 {
+                    address,
+                    i2c: i2c,
+                }),
+                Err(error) => Err(ThermocoupleError::I2CError { source: error })
+            }   
+        }
 
-    pub fn read(&mut self) -> Result<f64, ThermocoupleError> {
-        self.read_temperature(HOT_JUNCTION_TEMPERATURE, FIRST_BIT_SIGN)
-    }
+        pub fn read_internal(&mut self) -> Result<f64, ThermocoupleError> {
+            self.read_temperature(COLD_JUNCTION_TEMPERATURE, TOP_HALF_SIGN)
+        }
 
-    fn read_temperature(&mut self, junction: u8, sign_bits: u8) -> Result<f64, ThermocoupleError> {
-        let mut register = [0u8; 2];
+        pub fn read(&mut self) -> Result<f64, ThermocoupleError> {
+            self.read_temperature(HOT_JUNCTION_TEMPERATURE, FIRST_BIT_SIGN)
+        }
 
-        let write_command: u8 = (self.address << 1) as u8;
-        let read_command:u8 = write_command | 0x01;
-        
-        self.i2c.block_write(write_command, &[junction])?;
-        self.i2c.write(&[read_command])?;
+        fn read_temperature(&mut self, junction: u8, sign_bits: u8) -> Result<f64, ThermocoupleError> {
+            let mut register = [0u8; 2];
 
-        let result = self.i2c.block_read(junction, &mut register);
+            let write_command: u8 = (self.address << 1) as u8;
+            let read_command:u8 = write_command | 0x01;
+            
+            self.i2c.block_write(write_command, &[junction])?;
+            self.i2c.write(&[read_command])?;
 
-        match result {
-            Ok(()) => Ok(to_float(register, sign_bits)),
-            Err(error) => {
-                error!("error: {}", error);
-                Err(ThermocoupleError::I2CError { source: error })
-            },
+            let result = self.i2c.block_read(junction, &mut register);
+
+            match result {
+                Ok(()) => Ok(to_float(register, sign_bits)),
+                Err(error) => {
+                    error!("error: {}", error);
+                    Err(ThermocoupleError::I2CError { source: error })
+                },
+            }
+        }
+
+        pub fn read_error(self) -> ThermocoupleError {
+            // TODO: Read status register and return errors.
+            ThermocoupleError::Unknown
         }
     }
+}
 
-    pub fn read_error(self) -> ThermocoupleError {
-        // TODO: Read status register and return errors.
-        ThermocoupleError::Unknown
+#[cfg(not(target = "armv7-unknown-linux-gnueabihf"))]
+pub mod simulated {
+    use super::*;
+
+    pub struct MCP9600 {
+        address: u16,
+    }
+
+    impl MCP9600 {
+        pub fn new(address: u16) -> Result<Self, ThermocoupleError> {
+            Ok(MCP9600 { address })
+        }
+
+        pub fn read_internal(&mut self) -> Result<f64, ThermocoupleError> {
+            Ok(0.0)
+        }
+
+        pub fn read(&mut self) -> Result<f64, ThermocoupleError> {
+            Ok(0.0)
+        }
+
+        fn read_temperature(&mut self, junction: u8, sign_bits: u8) -> Result<f64, ThermocoupleError> {
+            Ok(0.0)
+        }
+
+        pub fn read_error(self) -> ThermocoupleError {
+            // TODO: Read status register and return errors.
+            ThermocoupleError::Unknown
+        }
     }
 }
 

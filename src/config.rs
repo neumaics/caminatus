@@ -15,6 +15,7 @@ struct ConfigFile {
     pub web: WebConfigSection,
     pub poll_interval: Option<u32>,
     pub thermocouple_address: u16,
+    pub gpio: GpioConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,12 +25,18 @@ struct WebConfigSection {
     pub keep_alive_interval: u32,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct GpioConfig {
+    pub heater: u8
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub log_level: String,
     pub web: WebConfig,
     pub poll_interval: u32,
     pub thermocouple_address: u16,
+    pub gpio: GpioConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -80,6 +87,9 @@ impl TryFrom<ConfigFile> for Config {
                 port: value.web.port,
                 host_ip,
                 keep_alive_interval: value.web.keep_alive_interval,
+            },
+            gpio: GpioConfig {
+                heater: value.gpio.heater,
             },
             poll_interval: value.poll_interval.unwrap_or(1000), // TODO: enforce value greater than 0
             thermocouple_address: value.thermocouple_address

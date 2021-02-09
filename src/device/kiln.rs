@@ -6,12 +6,12 @@ use serde::Serialize;
 use rsfuzzy::*;
 use tokio::{join, task, time};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Sender, Receiver};
+use tokio::sync::broadcast::{Sender, Receiver};
 use tokio::time::sleep;
 use tracing::{info};
 use uuid::Uuid;
 
-use crate::schedule::Schedule;
+use crate::{schedule::Schedule, server::Message};
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
 
@@ -20,6 +20,12 @@ pub enum KilnState {
     Idle,
     Running,
 }
+
+// impl std::fmt::Display for KilnState {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+
+//     }
+// }
 
 pub enum KilnEvent {
     Start,
@@ -41,8 +47,8 @@ pub struct KilnUpdate {
 pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
-    pub sender: Sender<KilnEvent>,
-    receiver: Receiver<KilnEvent>,
+    // pub sender: Sender<KilnEvent>,
+    // receiver: Receiver<KilnEvent>,
     thermocouple_address: u16, // 0x60
     heater_pin: u8,
     schedule: Option<Schedule>,
@@ -52,13 +58,13 @@ pub struct Kiln {
 impl Kiln {
     pub fn new(thermocouple_address: u16, heater_pin: u8) -> Result<Kiln> {
         let id = Uuid::new_v4();
-        let (tx, rx) = mpsc::channel(32);
+        // let (tx, rx) = mpsc::channel(32);
 
         Ok(Kiln {
             id,
             state: KilnState::Idle,
-            sender: tx,
-            receiver: rx,
+            // sender: tx,
+            // receiver: rx,
             thermocouple_address,
             heater_pin,
             schedule: None,
@@ -85,40 +91,49 @@ impl Kiln {
 
     pub async fn start(self, interval: u32, manager_sender: Sender<Command>) -> Result<()> {
         let channel = "kiln";
-        let _update_tx = manager_sender.clone();
+        let update_tx = manager_sender.clone();
 
         let updater = task::spawn(async move {
             let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(self.thermocouple_address).unwrap();
             let mut heater = Heater::new(self.heater_pin).unwrap();
-            let mut rx = self.receiver;
+            // let mut rx = self.receiver;
             let mut state = self.state;
             // let mut update: (Option<KilnEvent>) -> KilnEvent = Kiln::update_state;
     
             loop {
-                let _temperature = &thermocouple.read().unwrap();
-                let maybe_update = rx.recv().await;
-                let new_state = Kiln::update_state(state, maybe_update);
+                let temperature = &thermocouple.read().unwrap();
+                // let maybe_update = rx.recv().await;
+                // let new_state = Kiln::update_state(state, maybe_update);
 
-                state = new_state;
+                // state = new_state;
                 info!("current state {:?}", state);
-
+                let new_state = KilnState::Idle;
                 match new_state {
                     KilnState::Running => {
                         heater.on();
+                        sleep(Duration::from_millis((interval / 2) as u64)).await;
                         heater.off();
-                        sleep(Duration::from_millis(interval as u64)).await;
-                    } ,
+                        sleep(Duration::from_millis((interval / 2) as u64)).await;
+                        let _ = update_tx.send(Command::Update {
+                            channel: channel.to_string(),
+                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\"}}", temperature, new_state),
+                        });
+                    },
                     KilnState::Idle => {
                         wait_interval.tick().await;
+                        let _ = update_tx.send(Command::Update {
+                            channel: channel.to_string(),
+                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\"}}", temperature, new_state),
+                        });
                     },
                     
                 };
             }
         });
 
-        let register = manager_sender.send(Command::Register { channel: channel.to_string() });
-        let _ = join!(updater, register);
+        let _ = manager_sender.send(Command::Register { channel: channel.to_string() });
+        let _ = join!(updater);
 
         Ok(())
     }

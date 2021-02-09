@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::server::{Message, Monitor, Command, Web};
-// use crate::device::Kiln;
+use crate::device::Kiln;
 
 type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Message>)>>>>;
 type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
@@ -29,6 +29,7 @@ impl Manager {
         tracing_subscriber::fmt::init();
 
         let web = Web::start(conf.clone(), b_tx.clone());
+        let kiln = Kiln::new(conf.thermocouple_address, conf.gpio.heater)?.start(conf.poll_interval, b_tx.clone());
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
         let clients = ClientList::default();
@@ -40,7 +41,7 @@ impl Manager {
         });
 
         // todo: use value of join
-        let _ = join!(web, monitor);
+        let _ = join!(web, monitor, kiln);
 
         Ok(Manager {
             sender: b_tx,

@@ -1,12 +1,5 @@
 use std::error::Error;
 
-use rppal::gpio::{OutputPin, Gpio};
-
-/// Interface into a zero-crossing solid state relay.
-pub struct Heater {
-    pin: OutputPin
-}
-
 #[derive(Debug)]
 pub enum HeaterError {
     GpioError {
@@ -32,26 +25,68 @@ impl std::fmt::Display for HeaterError {
     }   
 }
 
-impl Heater {
-    /// The gpio pin to send the on/off signal. Note, this is the gpio index and
-    ///   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
-    pub fn new(gpio_pin: u8) -> Result<Heater, HeaterError> {
-        let pin = Gpio::new()?.get(gpio_pin)?.into_output();
+#[cfg(target = "armv7-unknown-linux-gnueabihf")]
+pub mod real {
+    use super::*;
+    use rppal::gpio::{OutputPin, Gpio};
 
-        Ok(Heater {
-            pin: pin
-        })
+    /// Interface into a zero-crossing solid state relay.
+    pub struct Heater {
+        pin: OutputPin
     }
 
-    pub fn toggle(&mut self) {
-        &self.pin.toggle();
+    impl Heater {
+        /// The gpio pin to send the on/off signal. Note, this is the gpio index and
+        ///   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
+        pub fn new(gpio_pin: u8) -> Result<Heater, HeaterError> {
+            let pin = Gpio::new()?.get(gpio_pin)?.into_output();
+
+            Ok(Heater {
+                pin: pin
+            })
+        }
+
+        pub fn toggle(&mut self) {
+            &self.pin.toggle();
+        }
+
+        pub fn on(&mut self) {
+            &self.pin.set_high();
+        }
+
+        pub fn off(&mut self) {
+            &self.pin.set_low();
+        }
+    }
+}
+
+#[cfg(not(target = "armv7-unknown-linux-gnueabihf"))]
+pub mod simulated {
+    use super::*;
+
+    pub struct Heater {
+        pin: u8
     }
 
-    pub fn on(&mut self) {
-        &self.pin.set_high();
-    }
+    impl Heater {
+        /// The gpio pin to send the on/off signal. Note, this is the gpio index and
+        ///   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
+        pub fn new(gpio_pin: u8) -> Result<Heater, HeaterError> {
+            Ok(Heater {
+                pin: gpio_pin
+            })
+        }
 
-    pub fn off(&mut self) {
-        &self.pin.set_low();
+        pub fn toggle(&mut self) {
+            // &self.pin.toggle();
+        }
+
+        pub fn on(&mut self) {
+            // &self.pin.set_high();
+        }
+
+        pub fn off(&mut self) {
+            // &self.pin.set_low();
+        }
     }
 }
