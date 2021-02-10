@@ -6,12 +6,12 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 
 use tokio::join;
-use tracing::{debug, event, error, Level, trace};
+use tracing::{debug, event, error, info, Level, trace};
 use uuid::Uuid;
 
 use crate::config::Config;
 use crate::server::{Message, Monitor, Command, Web};
-use crate::device::Kiln;
+use crate::device::{Kiln, KilnEvent};
 
 type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Message>)>>>>;
 type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
@@ -36,12 +36,11 @@ impl Manager {
 
         let monitor = Monitor::start(conf.web.keep_alive_interval, b_tx.clone());
 
+        let _ = join!(web, monitor, kiln);
+
         tokio::task::spawn(async move {
             let _ = Manager::process_commands(b_rx, subscriptions, services, clients).await;
         });
-
-        // todo: use value of join
-        let _ = join!(web, monitor, kiln);
 
         Ok(Manager {
             sender: b_tx,
@@ -131,6 +130,10 @@ impl Manager {
                 },
                 Command::Ping => Manager::handle_ping(&clients),
                 Command::Unknown { input } => Manager::handle_unknown(Some(input)),
+                Command::StartSchedule { schedule } => {
+                },
+                Command::StopSchedule => {
+                },
                 _ => Manager::handle_unknown(None)
             }
         }

@@ -1,17 +1,16 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryInto};
 use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
 use serde::Serialize;
 use rsfuzzy::*;
 use tokio::{join, task, time};
-use tokio::sync::mpsc;
-use tokio::sync::broadcast::{Sender, Receiver};
+use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
-use tracing::{info};
+use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::{schedule::Schedule, server::Message};
+use crate::schedule::Schedule;
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
 
@@ -21,14 +20,8 @@ pub enum KilnState {
     Running,
 }
 
-// impl std::fmt::Display for KilnState {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
-
-//     }
-// }
-
 pub enum KilnEvent {
-    Start,
+    Start(Schedule),
     Started,
     Stop,
     Stopped,
@@ -52,44 +45,57 @@ pub struct Kiln {
     thermocouple_address: u16, // 0x60
     heater_pin: u8,
     schedule: Option<Schedule>,
+    run_time: u64,
 }
 
 ///
 impl Kiln {
     pub fn new(thermocouple_address: u16, heater_pin: u8) -> Result<Kiln> {
         let id = Uuid::new_v4();
-        // let (tx, rx) = mpsc::channel(32);
 
         Ok(Kiln {
             id,
             state: KilnState::Idle,
-            // sender: tx,
-            // receiver: rx,
             thermocouple_address,
             heater_pin,
             schedule: None,
+            run_time: 0,
         })
     }
 
-    fn update_state(current_state: KilnState, event: Option<KilnEvent>) -> KilnState {
-        match event {
-            Some(KilnEvent::Start) => Kiln::start_schedule(current_state),
-            Some(KilnEvent::Stop) => Kiln::stop_schedule(current_state),
-            _ => current_state,
-        }
-    }
-
-    fn start_schedule(current_state: KilnState) -> KilnState {
+    pub fn start_schedule(&mut self, schedule: Schedule) -> KilnState {
         info!("starting");
-       current_state
+        match self.state {
+            KilnState::Idle => {
+                self.schedule = Some(schedule);
+                self.state = KilnState::Running;
+                self.run_time = 0;
+            },
+            KilnState::Running => {
+                warn!("attempting to start schedule when one is already running");
+            }
+        }
+
+        self.state
     }
 
-    fn stop_schedule(current_state: KilnState) -> KilnState {
+    pub fn stop_schedule(&mut self) -> KilnState {
         info!("stopping");
-        current_state
+        match self.state {
+            KilnState::Idle => {
+                warn!("attempting to stop schedule when kiln is already idle")
+            },
+            KilnState::Running => {
+                self.schedule = None;
+                self.state = KilnState::Idle;
+                self.run_time = 0;
+            },
+        }
+
+        self.state
     }
 
-    pub async fn start(self, interval: u32, manager_sender: Sender<Command>) -> Result<()> {
+    pub async fn start(self, interval: u32, manager_sender: broadcast::Sender<Command>) -> Result<()> {
         let channel = "kiln";
         let update_tx = manager_sender.clone();
 
@@ -97,19 +103,12 @@ impl Kiln {
             let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(self.thermocouple_address).unwrap();
             let mut heater = Heater::new(self.heater_pin).unwrap();
-            // let mut rx = self.receiver;
-            let mut state = self.state;
-            // let mut update: (Option<KilnEvent>) -> KilnEvent = Kiln::update_state;
     
             loop {
                 let temperature = &thermocouple.read().unwrap();
-                // let maybe_update = rx.recv().await;
-                // let new_state = Kiln::update_state(state, maybe_update);
 
-                // state = new_state;
-                info!("current state {:?}", state);
-                let new_state = KilnState::Idle;
-                match new_state {
+                info!("current state {:?}", self.state);
+                match self.state {
                     KilnState::Running => {
                         heater.on();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
@@ -117,17 +116,16 @@ impl Kiln {
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
                         let _ = update_tx.send(Command::Update {
                             channel: channel.to_string(),
-                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\"}}", temperature, new_state),
+                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, self.state),
                         });
                     },
                     KilnState::Idle => {
                         wait_interval.tick().await;
                         let _ = update_tx.send(Command::Update {
                             channel: channel.to_string(),
-                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\"}}", temperature, new_state),
+                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, self.state),
                         });
                     },
-                    
                 };
             }
         });

@@ -1,2 +1,2 @@
 mod kiln;
-pub use kiln::Kiln;
+pub use kiln::{Kiln, KilnError, KilnEvent, KilnUpdate};

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::Result;
 use futures::{Stream, StreamExt};
 use serde_json;
 use tokio::sync::mpsc;
@@ -16,7 +17,7 @@ use crate::schedule::{Schedule, ScheduleError};
 pub struct Web { }
 
 impl Web {
-    pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self, String> {
+    pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self> {
         let m1 = manager_sender.clone();
         let m2 = manager_sender.clone();
         let manager1 = warp::any().map(move || m1.clone());
@@ -156,7 +157,6 @@ fn on_connect(manager: &Sender<Command>) -> impl Stream<Item = Result<Event, war
     tx.send(Message::UserId(id)).unwrap();
 
     let _ = manager.send(Command::ClientRegister { id, sender: tx });
-    let _ = manager.send(Command::Subscribe { channel: "ping".to_string(), id });
 
     rx.map(|msg| match msg {
         Message::UserId(id) => Ok(Event::default().event("system").data(id.to_string())),
