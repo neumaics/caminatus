@@ -1,13 +1,14 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::{collections::{HashMap, VecDeque}};
 use std::time::{Duration, SystemTime};
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use serde::Serialize;
 use rsfuzzy::*;
-use tokio::{join, task, time};
+use tokio::{task, time};
 use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
-use tracing::{info, warn};
+use tracing::{debug, info, instrument, warn};
 use uuid::Uuid;
 
 use crate::schedule::Schedule;
@@ -20,6 +21,7 @@ pub enum KilnState {
     Running,
 }
 
+#[derive(Debug)]
 pub enum KilnEvent {
     Start(Schedule),
     Started,
@@ -37,6 +39,7 @@ pub struct KilnUpdate {
 }
 
 ///
+#[derive(Debug)]
 pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
@@ -50,19 +53,7 @@ pub struct Kiln {
 
 ///
 impl Kiln {
-    pub fn new(thermocouple_address: u16, heater_pin: u8) -> Result<Kiln> {
-        let id = Uuid::new_v4();
-
-        Ok(Kiln {
-            id,
-            state: KilnState::Idle,
-            thermocouple_address,
-            heater_pin,
-            schedule: None,
-            run_time: 0,
-        })
-    }
-
+    #[instrument]
     pub fn start_schedule(&mut self, schedule: Schedule) -> KilnState {
         info!("starting");
         match self.state {
@@ -78,7 +69,8 @@ impl Kiln {
 
         self.state
     }
-
+    
+    #[instrument]
     pub fn stop_schedule(&mut self) -> KilnState {
         info!("stopping");
         match self.state {
@@ -95,20 +87,34 @@ impl Kiln {
         self.state
     }
 
-    pub async fn start(self, interval: u32, manager_sender: broadcast::Sender<Command>) -> Result<()> {
+    #[instrument]
+    pub async fn start(
+        thermocouple_address: u16,
+        heater_pin: u8,
+        interval: u32,
+        manager_sender: broadcast::Sender<Command>
+    ) -> Result<mpsc::Sender<KilnEvent>> {
+        info!("starting kiln");
         let channel = "kiln";
         let update_tx = manager_sender.clone();
-
+        let queue = Arc::new(Mutex::new(VecDeque::<KilnEvent>::new()));
+        let (tx, mut rx): (mpsc::Sender<KilnEvent>, mpsc::Receiver<KilnEvent>) = mpsc::channel(8);
+        
+        let update_queue = queue.clone();
         let updater = task::spawn(async move {
             let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
-            let mut thermocouple = MCP9600::new(self.thermocouple_address).unwrap();
-            let mut heater = Heater::new(self.heater_pin).unwrap();
+            let mut thermocouple = MCP9600::new(thermocouple_address).unwrap();
+            let mut heater = Heater::new(heater_pin).unwrap();
     
             loop {
                 let temperature = &thermocouple.read().unwrap();
+                let maybe_update = {
+                    update_queue.lock().expect("unable to lock update queue").pop_front()
+                };
 
-                info!("current state {:?}", self.state);
-                match self.state {
+                debug!("queue: {:?}", maybe_update);
+                let state = KilnState::Idle;
+                match state {
                     KilnState::Running => {
                         heater.on();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
@@ -116,24 +122,35 @@ impl Kiln {
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
                         let _ = update_tx.send(Command::Update {
                             channel: channel.to_string(),
-                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, self.state),
+                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, state),
                         });
                     },
                     KilnState::Idle => {
                         wait_interval.tick().await;
                         let _ = update_tx.send(Command::Update {
                             channel: channel.to_string(),
-                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, self.state),
+                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, state),
                         });
                     },
                 };
             }
         });
 
-        let _ = manager_sender.send(Command::Register { channel: channel.to_string() });
-        let _ = join!(updater);
+        let handler_queue = queue.clone();
+        let _ = task::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                info!("kiln got event");
+                match event {
+                    KilnEvent::Start(schedule) => handler_queue.lock().expect("unable to lock").push_back(KilnEvent::Start(schedule)),
+                    KilnEvent::Stop => handler_queue.lock().expect("unable to lock").push_back(KilnEvent::Stop),
+                    _ => ()
+                }
+            }
+        });
 
-        Ok(())
+        let _ = manager_sender.send(Command::Register { channel: channel.to_string() });
+
+        Ok(tx)
     }
 }
 

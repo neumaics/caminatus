@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Result;
 use futures::{Stream, StreamExt};
 use serde_json;
+use tracing::{info};
 use tokio::sync::mpsc;
 use tokio::sync::broadcast::Sender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -20,6 +21,7 @@ impl Web {
     pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<Self> {
         let m1 = manager_sender.clone();
         let m2 = manager_sender.clone();
+        let m3 = manager_sender.clone();
         let manager1 = warp::any().map(move || m1.clone());
         let manager2 = warp::any().map(move || m2.clone());
 
@@ -65,12 +67,13 @@ impl Web {
                 .or(app)
                 .or(connect)
                 .or(subscribe)
+                .or(Web::device_routes(Some("./schedules".to_string()), m3))
                 .or(Web::schedule_routes(Some("./schedules".to_string())));
 
             warp::serve(routes)
                 .run((conf.web.host_ip, conf.web.port))
                 .await;
-        }).await;
+        });
 
         Ok(Web { })
     }
@@ -146,6 +149,39 @@ impl Web {
             .or(update_schedule)
             .or(delete_schedule)
             .boxed()
+    }
+
+    pub fn device_routes(directory: Option<String>, manager: Sender<Command>) -> BoxedFilter<(impl Reply,)> {
+        let dir = directory.unwrap_or("./schedules".to_string());
+        let dir = warp::any().map(move || dir.clone());
+        let manager2 = warp::any().map(move || manager.clone());
+        
+        let device = warp::get()
+            .and(manager2)
+            .and(warp::path("device"))
+            .and(warp::path("kiln"))
+            .and(warp::path::param())
+            .and(warp::path("start"))
+            .and(dir.clone())
+            .map(|m: Sender<Command>, id: String, directory: String| match Schedule::by_name(&id, &directory) {
+                Ok(s) => {
+                    m.clone().send(Command::StartSchedule { schedule: s }).expect("unable to send command to manager");
+                    Response::builder()
+                        .status(warp::http::StatusCode::OK)
+                        .body("{ \"message\": \"started\" }".to_string())
+                },
+                Err(error) => match error {
+                    ScheduleError::IOError { description: _ } => Response::builder()
+                        .status(warp::http::StatusCode::NOT_FOUND)
+                        // TODO: make this a struct
+                        .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)), 
+                    _ => Response::builder()
+                        .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(format!("{:?}", error)),
+                }
+            });
+
+        device.boxed()
     }
 }
 

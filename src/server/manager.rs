@@ -4,9 +4,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
-
 use tokio::join;
-use tracing::{debug, event, error, info, Level, trace};
+use tracing::{debug, error, info, instrument, trace};
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -23,35 +22,39 @@ pub struct Manager {
 }
 
 impl Manager {
+    
+    #[instrument]
     pub async fn start(conf: Config) -> Result<Manager> {
-        event!(Level::DEBUG, "system starting");
+        debug!("starting manager");
         let (b_tx, b_rx): (broadcast::Sender<Command>, broadcast::Receiver<Command>) = broadcast::channel(32);
         tracing_subscriber::fmt::init();
 
         let web = Web::start(conf.clone(), b_tx.clone());
-        let kiln = Kiln::new(conf.thermocouple_address, conf.gpio.heater)?.start(conf.poll_interval, b_tx.clone());
+        let kiln = Kiln::start(conf.thermocouple_address, conf.gpio.heater, conf.poll_interval, b_tx.clone()).await?;
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
         let clients = ClientList::default();
 
         let monitor = Monitor::start(conf.web.keep_alive_interval, b_tx.clone());
 
-        let _ = join!(web, monitor, kiln);
-
-        tokio::task::spawn(async move {
-            let _ = Manager::process_commands(b_rx, subscriptions, services, clients).await;
+        let proc = tokio::task::spawn(async move {
+            let _ = Manager::process_commands(b_rx, subscriptions, services, clients, kiln).await;
         });
+
+        let _ = join!(proc, web);
 
         Ok(Manager {
             sender: b_tx,
         })
     }
 
+    #[instrument]
     async fn process_commands(
         mut receiver: broadcast::Receiver<Command>,
         subscriptions: SubscriptionList,
         _services: ServiceList,
         clients: ClientList,
+        kiln: Sender<KilnEvent>,
     ) -> Result<()> {
         while let Ok(command) = receiver.recv().await {
             match command {
@@ -131,8 +134,10 @@ impl Manager {
                 Command::Ping => Manager::handle_ping(&clients),
                 Command::Unknown { input } => Manager::handle_unknown(Some(input)),
                 Command::StartSchedule { schedule } => {
+                    let _ = kiln.send(KilnEvent::Start(schedule)).await;
                 },
                 Command::StopSchedule => {
+                    let _ = kiln.send(KilnEvent::Stop).await;
                 },
                 _ => Manager::handle_unknown(None)
             }
@@ -141,11 +146,12 @@ impl Manager {
         Ok(())
     }
 
+    #[instrument]
     fn handle_ping(clients: &ClientList) {
         let name = "ping";
         clients
             .lock()
-            .expect("unable to get log on client list")
+            .expect("unable to get lock on client list")
             .retain(|_id, sender| {
                 sender.send(Message::Update {
                     channel: name.to_string(),
@@ -154,6 +160,7 @@ impl Manager {
             })
     }
 
+    #[instrument]
     fn handle_unknown(input: Option<String>) {
         match input {
             Some(s) => error!("unknown command received {}. ignoring", s),
