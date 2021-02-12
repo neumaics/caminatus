@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::{collections::{HashMap, VecDeque}};
 use std::time::{Duration, SystemTime};
 use std::sync::{Arc, Mutex};
@@ -22,6 +23,23 @@ pub enum KilnState {
 }
 
 #[derive(Debug)]
+pub struct RunState {
+    runtime: u32,
+    schedule: Option<Schedule>,
+    state: KilnState,
+}
+
+impl RunState {
+    pub fn increment(self, by: u32) -> RunState {
+        RunState {
+            runtime: self.runtime + by,
+            schedule: self.schedule,
+            state: self.state,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum KilnEvent {
     Start(Schedule),
     Started,
@@ -43,8 +61,6 @@ pub struct KilnUpdate {
 pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
-    // pub sender: Sender<KilnEvent>,
-    // receiver: Receiver<KilnEvent>,
     thermocouple_address: u16, // 0x60
     heater_pin: u8,
     schedule: Option<Schedule>,
@@ -101,10 +117,11 @@ impl Kiln {
         let (tx, mut rx): (mpsc::Sender<KilnEvent>, mpsc::Receiver<KilnEvent>) = mpsc::channel(8);
         
         let update_queue = queue.clone();
-        let updater = task::spawn(async move {
+        let _updater = task::spawn(async move {
             let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(thermocouple_address).unwrap();
             let mut heater = Heater::new(heater_pin).unwrap();
+            let mut run_state = RunState { schedule: None, runtime: 0, state: KilnState::Idle };
     
             loop {
                 let temperature = &thermocouple.read().unwrap();
@@ -112,8 +129,29 @@ impl Kiln {
                     update_queue.lock().expect("unable to lock update queue").pop_front()
                 };
 
-                debug!("queue: {:?}", maybe_update);
-                let state = KilnState::Idle;
+                info!("state {:?}", run_state);
+                let state = match maybe_update {
+                    Some(KilnEvent::Start(schedule)) => { 
+                        run_state = RunState {
+                            schedule: Some(schedule),
+                            runtime: 0,
+                            state: KilnState::Running,
+                        };
+
+                        KilnState::Running
+                    },
+                    Some(KilnEvent::Stop) => {
+                        run_state = RunState {
+                            schedule: None,
+                            runtime: 0,
+                            state: KilnState::Idle,
+                        };
+
+                        KilnState::Idle
+                    },
+                    _ => run_state.state,
+                };
+
                 match state {
                     KilnState::Running => {
                         heater.on();
@@ -124,6 +162,8 @@ impl Kiln {
                             channel: channel.to_string(),
                             data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, state),
                         });
+
+                        run_state = run_state.increment(interval / 1000);
                     },
                     KilnState::Idle => {
                         wait_interval.tick().await;

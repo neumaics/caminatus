@@ -154,16 +154,19 @@ impl Web {
     pub fn device_routes(directory: Option<String>, manager: Sender<Command>) -> BoxedFilter<(impl Reply,)> {
         let dir = directory.unwrap_or("./schedules".to_string());
         let dir = warp::any().map(move || dir.clone());
-        let manager2 = warp::any().map(move || manager.clone());
+        let m2 = manager.clone();
+        let m3 = manager.clone();
+        let manager2 = warp::any().map(move || m2.clone());
+        let manager3 = warp::any().map(move || m3.clone());
         
-        let device = warp::get()
+        let start = warp::get()
+            .and(dir.clone())
             .and(manager2)
             .and(warp::path("device"))
             .and(warp::path("kiln"))
             .and(warp::path::param())
             .and(warp::path("start"))
-            .and(dir.clone())
-            .map(|m: Sender<Command>, id: String, directory: String| match Schedule::by_name(&id, &directory) {
+            .map(|directory: String, m: Sender<Command>, id: String| match Schedule::by_name(&id, &directory) {
                 Ok(s) => {
                     m.clone().send(Command::StartSchedule { schedule: s }).expect("unable to send command to manager");
                     Response::builder()
@@ -181,7 +184,21 @@ impl Web {
                 }
             });
 
-        device.boxed()
+        let stop = warp::get()
+            .and(dir.clone())
+            .and(manager3)
+            .and(warp::path("device"))
+            .and(warp::path("kiln"))
+            .and(warp::path("stop"))
+            .map(|directory: String, m: Sender<Command>| {
+                m.clone().send(Command::StopSchedule).expect("unable to send command to manager");
+                Response::builder()
+                    .status(warp::http::StatusCode::OK)
+                    .body("{ \"message\": \"stopped\" }".to_string())
+
+            });
+
+        start.or(stop).boxed()
     }
 }
 
