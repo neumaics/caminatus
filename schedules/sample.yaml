@@ -1,3 +1,4 @@
+---
 #
 # Not meant to be managed directly by the user, although possible.
 #
@@ -5,23 +6,9 @@
 #   example: 20 per hour, 20 / hour
 #            10 minutes, 40 seconds
 name: slow bisque
-description: drive off all of the moisture before rateing up
+description: drive off all of the moisture before ramping up
 scale: Celsius
 steps:
-    - description: Get temperature up from ambient.
-      start_temperature: 0
-      end_temperature: 100
-      rate:
-          value: 20
-          unit: Hours
-    - description: Hold to drive off moisture
-      start_temperature: 100
-      end_temperature: 100
-      duration:
-          value: 1
-          unit: Hour
-    - start_temperature: 100
-      end_temperature: 800
-      rate:
-          value: 200
-          unit: Hours
+  - Ambient to 100 by 20 degrees per hour.
+  - Hold for 1 hour.
+  - 100 to 800 over 200 minutes.
