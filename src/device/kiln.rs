@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::{collections::{HashMap, VecDeque}};
 use std::time::{Duration, SystemTime};
 use std::sync::{Arc, Mutex};
@@ -9,10 +8,10 @@ use rsfuzzy::*;
 use tokio::{task, time};
 use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
-use tracing::{debug, info, instrument, warn};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
-use crate::schedule::Schedule;
+use crate::schedule::NormalizedSchedule;
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
 
@@ -25,23 +24,13 @@ pub enum KilnState {
 #[derive(Debug)]
 pub struct RunState {
     runtime: u32,
-    schedule: Option<Schedule>,
+    schedule: Option<NormalizedSchedule>,
     state: KilnState,
-}
-
-impl RunState {
-    pub fn increment(self, by: u32) -> RunState {
-        RunState {
-            runtime: self.runtime + by,
-            schedule: self.schedule,
-            state: self.state,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub enum KilnEvent {
-    Start(Schedule),
+    Start(NormalizedSchedule),
     Started,
     Stop,
     Stopped,
@@ -63,14 +52,14 @@ pub struct Kiln {
     pub state: KilnState,
     thermocouple_address: u16, // 0x60
     heater_pin: u8,
-    schedule: Option<Schedule>,
+    schedule: Option<NormalizedSchedule>,
     run_time: u64,
 }
 
 ///
 impl Kiln {
     #[instrument]
-    pub fn start_schedule(&mut self, schedule: Schedule) -> KilnState {
+    pub fn start_schedule(&mut self, schedule: NormalizedSchedule) -> KilnState {
         info!("starting");
         match self.state {
             KilnState::Idle => {
@@ -121,7 +110,9 @@ impl Kiln {
             let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(thermocouple_address).unwrap();
             let mut heater = Heater::new(heater_pin).unwrap();
-            let mut run_state = RunState { schedule: None, runtime: 0, state: KilnState::Idle };
+            let mut runtime: u32 = 0;
+            let mut schedule: Option<NormalizedSchedule> = None;
+            let mut state = KilnState::Idle;
     
             loop {
                 let temperature = &thermocouple.read().unwrap();
@@ -129,41 +120,37 @@ impl Kiln {
                     update_queue.lock().expect("unable to lock update queue").pop_front()
                 };
 
-                info!("state {:?}", run_state);
-                let state = match maybe_update {
-                    Some(KilnEvent::Start(schedule)) => { 
-                        run_state = RunState {
-                            schedule: Some(schedule),
-                            runtime: 0,
-                            state: KilnState::Running,
-                        };
-
-                        KilnState::Running
+                match maybe_update {
+                    Some(KilnEvent::Start(s)) => {
+                        state = KilnState::Running;
+                        runtime = 0;
+                        schedule = Some(s);
                     },
                     Some(KilnEvent::Stop) => {
-                        run_state = RunState {
-                            schedule: None,
-                            runtime: 0,
-                            state: KilnState::Idle,
-                        };
-
-                        KilnState::Idle
+                        state = KilnState::Idle;
+                        runtime = 0;
+                        schedule = None;
                     },
-                    _ => run_state.state,
+                    _ => (),
                 };
 
                 match state {
                     KilnState::Running => {
+                        let set_point = schedule.clone().expect("valid").target_temperature(runtime);
+
                         heater.on();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
                         heater.off();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
+
+                        let update = format!("{{ \"temperature\": {}, \"state\": \"{:?}\", \"set_point\": {} }}", temperature, state, set_point);
                         let _ = update_tx.send(Command::Update {
                             channel: channel.to_string(),
-                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, state),
+                            data: update.clone(),
                         });
 
-                        run_state = run_state.increment(interval / 1000);
+                        info!("{}", update.clone());
+                        runtime += interval / 1000;
                     },
                     KilnState::Idle => {
                         wait_interval.tick().await;

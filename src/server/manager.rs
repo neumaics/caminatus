@@ -134,7 +134,7 @@ impl Manager {
                 Command::Ping => Manager::handle_ping(&clients),
                 Command::Unknown { input } => Manager::handle_unknown(Some(input)),
                 Command::StartSchedule { schedule } => {
-                    let _ = kiln.send(KilnEvent::Start(schedule)).await;
+                    let _ = kiln.send(KilnEvent::Start(schedule.normalize())).await;
                 },
                 Command::StopSchedule => {
                     let _ = kiln.send(KilnEvent::Stop).await;

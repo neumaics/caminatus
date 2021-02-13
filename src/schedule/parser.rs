@@ -66,7 +66,7 @@ pub enum TimeUnit {
     Unknown = 0,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
     Celsius,
     Fahrenheit,
@@ -74,7 +74,7 @@ pub enum TemperatureScale {
 }
 
 /// Variant of the Schedule, but is normalized to cumulative seconds
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct NormalizedSchedule {
     pub name: String,
     pub description: Option<String>,
