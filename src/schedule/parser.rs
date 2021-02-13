@@ -11,35 +11,13 @@ use nom::{
     branch::alt,
     combinator::{map_res, opt},
 };
-use serde::{Serialize, Deserialize};
-use tracing::info;
+use serde::{Deserialize, Serialize};
+use tracing::trace;
 use uuid::Uuid;
 
 use super::error::ScheduleError;
 
-// TODO: use std::time::Duration
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Duration {
-    pub value: u32,
-    pub unit: TimeUnit
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate {
-    pub value: u16,
-    pub unit: TimeUnit
-}
-
-// TODO: Add optional hold period.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Step {
-    pub description: Option<String>,
-    pub start_temperature: f64,
-    pub end_temperature: f64,
-    pub duration: Option<Duration>,
-    pub rate: Option<Rate>
-}
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct NormalizedStep {
     pub start_time: u32,
     pub end_time: u32,
@@ -47,7 +25,7 @@ pub struct NormalizedStep {
     pub end_temperature: f64,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize)]
 pub enum TimeUnit {
     #[serde(alias = "Hour")]
     #[serde(alias = "hour")]
@@ -75,7 +53,7 @@ pub enum TemperatureScale {
 }
 
 /// Variant of the Schedule, but is normalized to cumulative seconds
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct NormalizedSchedule {
     pub name: String,
     pub description: Option<String>,
@@ -266,70 +244,51 @@ impl Schedule {
     }
 
     fn validate(schedule: &Schedule) -> Result<(), ScheduleError> {
-        // let step_validation: String = schedule
-        //     .steps
-        //     .iter()
-        //     .filter_map(|s: &String| match parse_step(s.as_str(), None).err() {
-        //         // todo: serialize earlier, validate earlier
-        //         Some(e) => Some(format!("{:?}", e)),
-        //         None => None,
-        //     })
-        //     .map(|s| s.into())
-        //     .collect::<Vec<String>>()
-        //     .join("\n");
-        // let steps = &schedule.steps.len();
+        let step_validation: String = schedule
+            .steps
+            .iter()
+            .filter_map(|s: &String| match parse_step(s.as_str(), None).err() {
+                // todo: serialize earlier, validate earlier
+                Some(e) => Some(format!("{:?}", e)),
+                None => None,
+            })
+            .map(|s| s.into())
+            .collect::<Vec<String>>()
+            .join("\n");
+        let steps = &schedule.steps.len();
 
-        // if step_validation.len() == 0 && *steps >= 2 {
-        //     Ok(())
-        // } else if *steps < 2 {
-        //     Err(ScheduleError::InvalidStep {
-        //         description: "not enough steps in schedule. more than 2 required".to_string(),
-        //     })
-        // } else {
-        //     Err(ScheduleError::InvalidStep {
-        //         description: step_validation
-        //     })
-        // }
-        Ok(())
+        if step_validation.len() == 0 && *steps >= 2 {
+            Ok(())
+        } else if *steps < 2 {
+            Err(ScheduleError::InvalidStep {
+                description: "not enough steps in schedule. more than 2 required".to_string(),
+            })
+        } else {
+            Err(ScheduleError::InvalidStep {
+                description: step_validation
+            })
+        }
     }
 
     // TODO: normalize temperatures to Kelvin.
-    pub fn normalize(self) -> NormalizedSchedule {
+    pub fn normalize(self) -> Result<NormalizedSchedule> {
         let mut steps: Vec<NormalizedStep> = Vec::new();
         let mut prev_step: Option<NormalizedStep> = None;
-        let mut i = 0;
 
         for s in &self.steps {
-            info!("step: {:?}", s.clone());
+            trace!("step: {:?}", s.clone());
             let (_, step) = parse_step(s.as_str(), prev_step).unwrap();
             prev_step = Some(step.clone());
 
             steps.push(step)
-
-            // let end_time: u32 = match &s.duration {
-            //     Some(d) => Step::duration_to_seconds(d),
-            //     None => match &s.rate {
-            //         Some(r) => Step::rate_to_seconds(s, r),
-            //         None => 0
-            //     }
-            // };
-
-            // steps.push(NormalizedStep {
-            //     start_time: i,
-            //     end_time: i + end_time,
-            //     start_temperature: s.start_temperature,
-            //     end_temperature: s.end_temperature,
-            // });
-
-            // i += end_time;
         }
 
-        NormalizedSchedule {
+        Ok(NormalizedSchedule {
             name: self.name,
             description: self.description,
             scale: self.scale,
             steps: steps,
-        }
+        })
     }
 
     pub fn all(schedule_directory: &String) -> Vec<String> {
@@ -400,7 +359,7 @@ impl NormalizedSchedule {
         }
     }
 
-    fn total_duration(&self) -> u32 {
+    pub fn total_duration(&self) -> u32 {
         match self.steps.last() {
             Some(last) => last.end_time,
             None => 0
@@ -413,39 +372,6 @@ impl NormalizedSchedule {
         step
     }
 }
-
-impl Step {
-    pub fn validate(&self) -> Result<(), ScheduleError> {
-        let has_rate = self.duration.is_some();
-        let has_duration = self.rate.is_some();
-
-        if has_rate ^ has_duration {
-            Ok(())
-        } else if !has_rate && !has_duration {
-            Err(ScheduleError::InvalidStep {
-                description: "must have either a rate or duration".to_string()
-            })
-        } else {
-            Err(ScheduleError::InvalidStep {
-                description: "must have either a rate or duration, not both".to_string()
-            })
-        }
-    }
-
-    /// Converts the rate to seconds for normalization
-    pub fn rate_to_seconds(step: &Step, rate: &Rate) -> u32 {
-        let t_delta = &step.end_temperature - &step.start_temperature;
-        let p = t_delta.abs() / rate.value as f64;
-        let time = p * ((rate.unit as u32) as f64);
-
-        time.round() as u32
-    }
-
-    pub fn duration_to_seconds(duration: &Duration) -> u32 {
-        (duration.value as u32) * (duration.unit as u32)
-    }
-}
-
 
 #[cfg(test)]
 mod parser_tests {
@@ -513,100 +439,43 @@ mod parser_tests {
     }
 
     #[test]
-    fn should_convert_rate_to_seconds() {
-        let rate = Rate {
-            value: 100,
-            unit: TimeUnit::Hours,
-        };
-
-        let step = Step {
+    fn should_get_target_temp() -> Result<()> {
+        let schedule = Schedule {
+            name: "test 1".to_string(),
             description: None,
-            start_temperature: 0.0,
-            end_temperature: 1000.0,
-            duration: None,
-            rate: None
+            scale: TemperatureScale::Celsius,
+            steps: vec![
+                "0 to 100 over 1 hour".to_string(),
+                "100 to 200 over 1 hour".to_string()
+            ]
         };
+        let normalized = schedule.normalize()?;
 
-        let seconds = Step::rate_to_seconds(&step, &rate);
+        let time = 0;
+        let target = normalized.target_temperature(time);
+        assert_eq!(target, 0.0);
 
-        assert_eq!(seconds, 36_000);
+        let time = 1800;
+        let target = normalized.target_temperature(time);
+        assert_eq!(target, 50.0);
+
+        let time = 3600;
+        let target = normalized.target_temperature(time);
+        assert_eq!(target, 100.0);
+
+        let time = 5400;
+        let target = normalized.target_temperature(time);
+        assert_eq!(target, 150.0);
+
+        let time = 7200;
+        let target = normalized.target_temperature(time);
+        assert_eq!(target, 200.0);
+
+        // Outside the schedule's range.
+        let time = 3600 * 3;
+        let target = normalized.target_temperature(time);
+        assert_eq!(target, 0.0);
+
+        Ok(())
     }
-
-    #[test]
-    fn should_convert_duration_to_seconds() {
-        let duration = Duration {
-            value: 10,
-            unit: TimeUnit::Hours,
-        };
-
-        let seconds = Step::duration_to_seconds(&duration);
-        assert_eq!(seconds, 36_000);
-
-        let duration = Duration {
-            value: 60,
-            unit: TimeUnit::Minutes,
-        };
-
-        let seconds = Step::duration_to_seconds(&duration);
-        assert_eq!(seconds, 3_600);
-
-        let duration = Duration {
-            value: 10,
-            unit: TimeUnit::Seconds,
-        };
-
-        let seconds = Step::duration_to_seconds(&duration);
-        assert_eq!(seconds, 10);
-    }
-
-    // #[test]
-    // fn should_get_target_temp() {
-    //     let schedule = Schedule {
-    //         name: "test 1".to_string(),
-    //         description: None,
-    //         scale: TemperatureScale::Celsius,
-    //         steps: vec![
-    //             Step {
-    //                 description: None,
-    //                 start_temperature: 0.0,
-    //                 end_temperature: 100.0,
-    //                 duration: Some(Duration { value: 1, unit: TimeUnit::Hours }),
-    //                 rate: None,
-    //             },
-    //             Step {
-    //                 description: None,
-    //                 start_temperature: 100.0,
-    //                 end_temperature: 200.0,
-    //                 duration: Some(Duration { value: 1, unit: TimeUnit::Hours }),
-    //                 rate: None,
-    //             }
-    //         ]
-    //     };
-    //     let normalized = schedule.normalize();
-
-    //     let time = 0;
-    //     let target = normalized.target_temperature(time);
-    //     assert_eq!(target, 0.0);
-
-    //     let time = 1800;
-    //     let target = normalized.target_temperature(time);
-    //     assert_eq!(target, 50.0);
-
-    //     let time = 3600;
-    //     let target = normalized.target_temperature(time);
-    //     assert_eq!(target, 100.0);
-
-    //     let time = 5400;
-    //     let target = normalized.target_temperature(time);
-    //     assert_eq!(target, 150.0);
-
-    //     let time = 7200;
-    //     let target = normalized.target_temperature(time);
-    //     assert_eq!(target, 200.0);
-
-    //     // Outside the schedule's range.
-    //     let time = 3600 * 3;
-    //     let target = normalized.target_temperature(time);
-    //     assert_eq!(target, 0.0);
-    // }
 }

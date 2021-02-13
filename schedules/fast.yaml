@@ -1,0 +1,8 @@
+---
+name: fast test
+description: a quick test that exercises functionality
+scale: Celsius
+steps:
+  - Ambient to 100 by 50 degrees per minute.
+  - Hold for 30 seconds.
+  - 100 to ambient by 50 degrees per minute

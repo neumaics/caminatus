@@ -1,7 +1,5 @@
 use serde::Serialize;
 
-use super::Schedule;
-
 #[derive(Debug, Serialize)]
 pub enum ScheduleError {
     InvalidStep {
@@ -37,19 +35,3 @@ impl From<serde_json::Error> for ScheduleError {
         ScheduleError::InvalidJson { }
     }
 }
-
-// impl From<nom::Err> for ScheduleError {
-//     fn from(error: nom::Err) -> ScheduleError {
-//         ScheduleError::InvalidStep {
-//             description: "foo".to_string()
-//         }
-//     }
-// }
-
-// impl From<nom::Err<nom::Err::Incomplete>> for Schedule {
-//     fn from(error: nom::error::Err) -> ScheduleError {
-//         ScheduleError::InvalidStep {
-//             description: format!("{:?}", error)
-//         }
-//     }
-// }

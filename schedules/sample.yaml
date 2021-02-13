@@ -1,10 +1,8 @@
 ---
 #
 # Not meant to be managed directly by the user, although possible.
-#
-# TODO: use human parseable values for rate and duration
-#   example: 20 per hour, 20 / hour
-#            10 minutes, 40 seconds
+# 
+# Simple (((a|A)mbient) | #) to (((a|A)mbient) | #) (by|over) # (degrees per) (hours)
 name: slow bisque
 description: drive off all of the moisture before ramping up
 scale: Celsius
