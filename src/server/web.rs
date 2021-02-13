@@ -168,10 +168,23 @@ impl Web {
             .and(warp::path("start"))
             .map(|directory: String, m: Sender<Command>, id: String| match Schedule::by_name(&id, &directory) {
                 Ok(s) => {
-                    m.clone().send(Command::StartSchedule { schedule: s }).expect("unable to send command to manager");
-                    Response::builder()
-                        .status(warp::http::StatusCode::OK)
-                        .body("{ \"message\": \"started\" }".to_string())
+                    let normalized = s.normalize();
+
+                    match normalized {
+                        Ok(schedule) => {
+                            m.clone().send(Command::StartSchedule { schedule }).expect("unable to send command to manager");
+                            Response::builder()
+                                .status(warp::http::StatusCode::OK)
+                                .body("{ \"message\": \"started\" }".to_string())
+                        }
+                        Err(e) => {
+                            Response::builder()
+                                .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+                                // TODO: make this a struct
+                                .body(format!("{{\"message\": \"error starting schedule with id: [{}]\", \"error\": \"{:?}\" }}", id, e))
+                        }
+                    }
+                    
                 },
                 Err(error) => match error {
                     ScheduleError::IOError { description: _ } => Response::builder()
@@ -185,12 +198,11 @@ impl Web {
             });
 
         let stop = warp::get()
-            .and(dir.clone())
             .and(manager3)
             .and(warp::path("device"))
             .and(warp::path("kiln"))
             .and(warp::path("stop"))
-            .map(|directory: String, m: Sender<Command>| {
+            .map(|m: Sender<Command>| {
                 m.clone().send(Command::StopSchedule).expect("unable to send command to manager");
                 Response::builder()
                     .status(warp::http::StatusCode::OK)
