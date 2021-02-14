@@ -4,10 +4,12 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use serde::Serialize;
+use serde_json;
 use rsfuzzy::*;
-use tokio::{task, time};
+use tokio::task;
 use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
+
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
@@ -15,7 +17,7 @@ use crate::schedule::NormalizedSchedule;
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize)]
 pub enum KilnState {
     Idle,
     Running,
@@ -30,6 +32,7 @@ pub struct RunState {
 
 #[derive(Debug)]
 pub enum KilnEvent {
+    Complete,
     Start(NormalizedSchedule),
     Started,
     Stop,
@@ -39,10 +42,16 @@ pub enum KilnEvent {
     Update
 }
 
+/// State of the kiln, sent to clients where
+/// temperature and set_point: recorded temperature in C
+/// runtime: time the schedule has been running in seconds
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KilnUpdate {
     temperature: f64,
-    timestamp: i64
+    state: KilnState,
+    runtime: u32,
+    set_point: f64
 }
 
 ///
@@ -51,47 +60,11 @@ pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
     thermocouple_address: u16, // 0x60
-    heater_pin: u8,
-    schedule: Option<NormalizedSchedule>,
-    run_time: u64,
+    heater_pin: u8
 }
 
 ///
 impl Kiln {
-    #[instrument]
-    pub fn start_schedule(&mut self, schedule: NormalizedSchedule) -> KilnState {
-        info!("starting");
-        match self.state {
-            KilnState::Idle => {
-                self.schedule = Some(schedule);
-                self.state = KilnState::Running;
-                self.run_time = 0;
-            },
-            KilnState::Running => {
-                warn!("attempting to start schedule when one is already running");
-            }
-        }
-
-        self.state
-    }
-    
-    #[instrument]
-    pub fn stop_schedule(&mut self) -> KilnState {
-        info!("stopping");
-        match self.state {
-            KilnState::Idle => {
-                warn!("attempting to stop schedule when kiln is already idle")
-            },
-            KilnState::Running => {
-                self.schedule = None;
-                self.state = KilnState::Idle;
-                self.run_time = 0;
-            },
-        }
-
-        self.state
-    }
-
     #[instrument]
     pub async fn start(
         thermocouple_address: u16,
@@ -107,7 +80,6 @@ impl Kiln {
         
         let update_queue = queue.clone();
         let _updater = task::spawn(async move {
-            let mut wait_interval = time::interval(Duration::from_millis(interval as u64));
             let mut thermocouple = MCP9600::new(thermocouple_address).unwrap();
             let mut heater = Heater::new(heater_pin).unwrap();
             let mut runtime: u32 = 0;
@@ -116,6 +88,7 @@ impl Kiln {
     
             loop {
                 let temperature = &thermocouple.read().unwrap();
+                let mut set_point: f64 = 0.0;
                 let maybe_update = {
                     update_queue.lock().expect("unable to lock update queue").pop_front()
                 };
@@ -126,7 +99,7 @@ impl Kiln {
                         runtime = 0;
                         schedule = Some(s);
                     },
-                    Some(KilnEvent::Stop) => {
+                    Some(KilnEvent::Stop) | Some(KilnEvent::Complete)=> {
                         state = KilnState::Idle;
                         runtime = 0;
                         schedule = None;
@@ -136,30 +109,35 @@ impl Kiln {
 
                 match state {
                     KilnState::Running => {
-                        let set_point = schedule.clone().expect("valid").target_temperature(runtime);
+                        set_point = schedule.clone().expect("valid").target_temperature(runtime);
 
                         heater.on();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
                         heater.off();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
 
-                        let update = format!("{{ \"temperature\": {}, \"state\": \"{:?}\", \"set_point\": {} }}", temperature, state, set_point);
-                        let _ = update_tx.send(Command::Update {
-                            channel: channel.to_string(),
-                            data: update.clone(),
-                        });
-
-                        info!("{}", update.clone());
                         runtime += interval / 1000;
+
+                        if runtime > schedule.clone().expect("valid").total_duration() {
+                            update_queue.lock().expect("unable to lock update queue").push_back(KilnEvent::Complete);
+                        }
                     },
                     KilnState::Idle => {
-                        wait_interval.tick().await;
-                        let _ = update_tx.send(Command::Update {
-                            channel: channel.to_string(),
-                            data: format!("{{ \"temperature\": {}, \"state\": \"{:?}\" }}", temperature, state),
-                        });
+                        sleep(Duration::from_millis((interval) as u64)).await;
                     },
                 };
+
+                let update = KilnUpdate {
+                    runtime, state, set_point, temperature: *temperature,
+                };
+                let update = serde_json::to_string(&update).expect("expected valid kiln update serialization");
+
+                info!("{}", &update);
+
+                let _ = update_tx.send(Command::Update {
+                    channel: channel.to_string(),
+                    data: update,
+                });
             }
         });
 

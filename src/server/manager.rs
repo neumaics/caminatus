@@ -5,7 +5,7 @@ use anyhow::Result;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tokio::join;
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, instrument, trace};
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -35,7 +35,7 @@ impl Manager {
         let services = ServiceList::default();
         let clients = ClientList::default();
 
-        let monitor = Monitor::start(conf.web.keep_alive_interval, b_tx.clone());
+        let _monitor = Monitor::start(conf.web.keep_alive_interval, b_tx.clone());
 
         let proc = tokio::task::spawn(async move {
             let _ = Manager::process_commands(b_rx, subscriptions, services, clients, kiln).await;
@@ -148,6 +148,7 @@ impl Manager {
 
     #[instrument]
     fn handle_ping(clients: &ClientList) {
+        trace!("handling ping");
         let name = "ping";
         clients
             .lock()
@@ -162,6 +163,7 @@ impl Manager {
 
     #[instrument]
     fn handle_unknown(input: Option<String>) {
+        trace!("handling unknown message");
         match input {
             Some(s) => error!("unknown command received {}. ignoring", s),
             None => error!("ignoring command"),

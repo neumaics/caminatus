@@ -1,7 +1,7 @@
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
-use crate::schedule::Schedule;
+use crate::schedule::NormalizedSchedule;
 
 #[derive(Debug)]
 pub enum Message {
@@ -48,7 +48,7 @@ pub enum Command {
     Ping,
 
     StartSchedule {
-        schedule: Schedule
+        schedule: NormalizedSchedule
     },
 
     StopSchedule
