@@ -1,16 +1,9 @@
-use std::{fs, io};
+use std::{fs, io, str::FromStr};
 use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 
-use anyhow::Result;
-use nom::{
-    AsChar,
-    IResult,
-    bytes::complete::{tag, take_while},
-    branch::alt,
-    combinator::{map_res, opt},
-};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
@@ -52,6 +45,19 @@ pub enum TimeUnit {
     Unknown = 0,
 }
 
+
+impl std::str::FromStr for TimeUnit {
+    type Err = ScheduleError;
+    fn from_str(input: &str) -> Result<TimeUnit, Self::Err> {
+        match input {
+            "hour" => Ok(TimeUnit::Hours),
+            "minute" => Ok(TimeUnit::Minutes),
+            "second" => Ok(TimeUnit::Seconds),
+            _ => Err(ScheduleError::InvalidStep { description: "unknown time unit provided".to_string() }),
+        }
+    } 
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum TemperatureScale {
     Celsius,
@@ -59,8 +65,21 @@ pub enum TemperatureScale {
     Kelvin,
 }
 
+impl std::str::FromStr for TemperatureScale {
+    type Err = ScheduleError;
+
+    fn from_str(input: &str) -> Result<TemperatureScale, Self::Err> {
+        match input {
+            "C" => Ok(TemperatureScale::Celsius),
+            "F" => Ok(TemperatureScale::Fahrenheit),
+            "K" => Ok(TemperatureScale::Kelvin),
+            _ => Err(ScheduleError::InvalidStep { description: "unknown temperature scale provided".to_string() }),
+        }
+    }
+}
+
 /// Variant of the Schedule, but is normalized to cumulative seconds
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct NormalizedSchedule {
     pub name: String,
     pub description: Option<String>,
@@ -84,7 +103,7 @@ pub enum StepType {
     Unknown,
 }
 
-fn rate_to_seconds(start_temperature: &f64, end_temperature: &f64, temp: u32, time_unit: TimeUnit) -> u32 {
+fn rate_to_seconds(start_temperature: &f64, end_temperature: &f64, temp: f32, time_unit: TimeUnit) -> u32 {
     let t_delta = end_temperature - start_temperature;
     let p = t_delta.abs() / temp as f64;
     let time = p * ((time_unit as u32) as f64);
@@ -92,196 +111,137 @@ fn rate_to_seconds(start_temperature: &f64, end_temperature: &f64, temp: u32, ti
     time.round() as u32
 }
 
-fn duration_to_seconds(temp: u32, time_unit: TimeUnit) -> u32 {
-    (temp as u32) * (time_unit as u32)
-}
+fn hold_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<NormalizedStep>) -> Result<NormalizedStep> {
+    let mut time = 0.0;
+    let mut unit = TimeUnit::Seconds;
 
-fn is_digit(c: char) -> bool {
-    c.is_dec_digit()
-}
-
-fn from_num_or_ambient(input: &str) -> Result<u32, std::num::ParseIntError> {
-    let num = if input.eq("ambient") || input.eq("Ambient") {
-        Ok(25)
-    } else {
-        u32::from_str_radix(input, 10)
-    }?;
-
-    Ok(num)
-}
-
-fn is_space(c: char) -> bool {
-    c.is_whitespace()
-}
-
-fn is_alpha(c: char) -> bool {
-    c.is_alpha()
-}
-
-fn num(input: &str) -> IResult<&str, u32> {
-    map_res(
-        alt((tag("ambient"), tag("Ambient"), take_while(is_digit))),
-        from_num_or_ambient
-    )(input)
-}
-
-fn to_step_type(input: &str) -> IResult<&str, StepType> {
-    let (input, step_type) = alt((tag("by"), tag("over")))(input)?;
-
-    let st = match step_type {
-        "by" => StepType::Rate,
-        "over" => StepType::Duration,
-        _ => StepType::Unknown,
-    };
-
-    Ok((input, st))
-}
-
-fn to_time_unit(input: &str) -> IResult<&str, TimeUnit> {
-    let (input, time_unit) = take_while(is_alpha)(input)?;
-
-    let time = match time_unit {
-        "hour" | "hours" | "Hour" | "Hours" => TimeUnit::Hours,
-        "minute" | "minutes" | "Minute" | "Minutes" => TimeUnit::Minutes,
-        "second" | "seconds" | "Second" | "Seconds" => TimeUnit::Seconds,
-        _ => TimeUnit::Unknown,
-    };
-
-    Ok((input, time))
-}
-
-fn parse_duration(input: &str) -> IResult<&str, (StepType, f64, f64, u32)> {
-    let (input, start_temperature) = num(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, _) = tag("to")(input)?; // to
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, end_temperature) = num(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, step_type) = to_step_type(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, temp) = opt(num)(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, _) = opt(tag("degrees "))(input)?;
-    let (input, _) = opt(tag("per "))(input)?;
-    let (input, time ) = to_time_unit(input)?;
-
-    let temperature = match temp {
-        Some(t) => t,
-        None => 1
-    };
-
-    let end_time = match step_type {
-        StepType::Duration => duration_to_seconds(temperature, time),
-        StepType::Rate => rate_to_seconds(&(start_temperature as f64), &(end_temperature as f64), temperature, time),
-        _ => 0
-    };
-
-    Ok((input, (step_type,  start_temperature as f64, end_temperature as f64, end_time)))
-}
-
-fn parse_hold(input: &str) -> IResult<&str, (StepType, f64, f64, u32)> {
-    let (input, _) = alt((tag("hold"), tag("Hold")))(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, _) = tag("for")(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, value) = num(input)?;
-    let (input, _) = take_while(is_space)(input)?;
-    let (input, time ) = to_time_unit(input)?;
-    let time = duration_to_seconds(value, time);
-
-    Ok((input, (StepType::Hold, 0.0, 0.0, time)))
-}
-
-pub fn parse_step(input: &str, prev: Option<NormalizedStep>) -> IResult<&str, NormalizedStep> {
-    let (input, parsed) = alt((parse_duration, parse_hold))(input)?;
-    let (step_type, start_temp, end_temp, end_time) = parsed;
-
-    let p: NormalizedStep = match prev {
+    let prev: NormalizedStep = match previous_step {
         Some(s) => s,
         None => Default::default(),
     };
 
-    let step = match step_type {
-        StepType::Rate | StepType::Duration => NormalizedStep {
-            start_temperature: start_temp,
-            end_temperature: end_temp,
-            start_time: p.end_time,
-            end_time: end_time + p.end_time,
-        },
-        StepType::Hold => NormalizedStep {
-            start_temperature: p.end_temperature,
-            end_temperature: p.end_temperature,
-            start_time: p.end_time,
-            end_time: end_time + p.end_time
-        },
-        _ => NormalizedStep {
-            start_temperature: -1.0,
-            end_temperature: -1.0,
-            start_time: 0,
-            end_time: 0,
+    for r in pairs {
+        match r.as_rule() {
+            Rule::number => time = r.as_str().parse::<f32>().unwrap(),
+            Rule::time_unit => unit = TimeUnit::from_str(r.as_str()).unwrap(),
+            _=> ()
         }
-    };
+    }
 
-    Ok((input, step))
+    let time = time * ((unit as u32) as f32);
+    
+    Ok(NormalizedStep {
+        start_time: prev.end_time,
+        end_time: prev.end_time + time.round() as u32,
+        start_temperature: prev.end_temperature,
+        end_temperature: prev.end_temperature,
+    })
 }
 
-fn parse_grammar(input: &str, prev: Option<NormalizedStep>) -> Result<()> {
+fn temp_from_parsed(pairs: pest::iterators::Pairs<Rule>) -> Result<f64> {
+    let mut temp = -1.0;
+    let mut scale = TemperatureScale::Celsius;
+
+    for r in pairs {
+        match r.as_rule() {
+            Rule::ambient => temp = 25.0,
+            Rule::number => temp = r.as_str().parse::<f64>().unwrap(),
+            Rule::scale => scale = TemperatureScale::from_str(r.as_str()).unwrap(),
+            _ => temp = -1.0
+        }
+    }
+
+    if temp < 0.0 {
+        Err(anyhow!("unable to parse temperature from input"))
+    } else {
+        Ok(match scale {
+            TemperatureScale::Celsius => temp,
+            TemperatureScale::Fahrenheit => fahrenheit_to_celcius(temp),
+            TemperatureScale::Kelvin => kelvin_to_celcius(temp),
+        })
+    }
+}
+
+fn duration_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<NormalizedStep>) -> Result<NormalizedStep> {
+    let mut start_temp = 0.0;
+    let mut end_temp = 0.0;
+    let mut time = 0.0;
+    let mut time_unit = TimeUnit::Seconds;
+    
+    let prev: NormalizedStep = match previous_step {
+        Some(s) => s,
+        None => Default::default(),
+    };
+
+    for r in pairs {
+        match r.as_rule() {
+            Rule::from => start_temp = temp_from_parsed(r.into_inner()).unwrap(),
+            Rule::to => end_temp = temp_from_parsed(r.into_inner()).unwrap(),
+            Rule::length => time = r.into_inner().as_str().parse::<f32>().unwrap(),
+            Rule::time_unit => time_unit = TimeUnit::from_str(r.as_str()).unwrap(),
+            _ => ()
+        }
+    }
+
+    let time = time * ((time_unit as u32) as f32);
+
+    Ok(NormalizedStep {
+        start_time: prev.end_time,
+        end_time: prev.end_time + time.round() as u32,
+        start_temperature: start_temp,
+        end_temperature: end_temp,
+    })
+}
+
+fn rate_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<NormalizedStep>) -> Result<NormalizedStep> {
+    let mut start_temp = 0.0;
+    let mut end_temp = 0.0;
+    let mut increment = 0.0;
+    let mut time_unit = TimeUnit::Seconds;
+    
+    let prev: NormalizedStep = match previous_step {
+        Some(s) => s,
+        None => Default::default(),
+    };
+    
+    for r in pairs {
+        match r.as_rule() {
+            Rule::from => start_temp = temp_from_parsed(r.into_inner()).unwrap(),
+            Rule::to => end_temp = temp_from_parsed(r.into_inner()).unwrap(),
+            Rule::increment => increment = r.into_inner().as_str().parse::<f32>().unwrap(),
+            Rule::time_unit => time_unit = TimeUnit::from_str(r.as_str()).unwrap(),
+            _ => ()
+        }
+    }
+
+    let time = rate_to_seconds(&start_temp, &end_temp, increment as f32, time_unit);
+
+    Ok(NormalizedStep {
+        start_time: prev.end_time,
+        end_time: prev.end_time + time,
+        start_temperature: start_temp,
+        end_temperature: end_temp,
+    })
+}
+
+fn parse_step(input: &str, prev: Option<NormalizedStep>) -> Result<NormalizedStep> {
     let parsed = StepParser::parse(Rule::step, input)?.next().unwrap();
 
-    let p = match parsed.as_rule() {
-        Rule::hold => {
-            let time = 0;
-            let unit = TimeUnit::Seconds;
-            
-            for r in parsed.into_inner() {
-                match r.as_rule() {
-                    Rule::number => std::println!("number {:?}", r.as_str()),
-                    Rule::time_unit => std::println!("timeunit {:?}", r.as_str()),
-                    _=> ()
-                }
-            }
-            ""
-        },
-        Rule::duration => "",
-        Rule::rate => "",
-        _ => "",      
-    };
-
-    // let t: Rule = parsed.as_rule();
-
-    // t match {
-    //     Rule::hold => "",
-    //     Rule::duration => ""
-    //     Rule::rate => "",
-    //     _ => "",
-    // }
-    
-
-    // for record in parsed {
-    //     Rule::number =>"",
-    //     Rule::
-    // }
-    // parsed.as_rule() match {
-    //     _ => ""
-    // };
-
-    
-    Ok(())
+    match parsed.as_rule() {
+        Rule::hold => hold_from_parsed(parsed.into_inner(), prev),
+        Rule::duration => duration_from_parsed(parsed.into_inner(), prev),
+        Rule::rate => rate_from_parsed(parsed.into_inner(), prev),
+        _ => Err(anyhow!("unrecognized step provided: {}", input)),
+    }
 }
-/*
-for record in file.into_inner() {
-        match record.as_rule() {
-            Rule::record => {
-                record_count += 1;
 
-                for field in record.into_inner() {
-                    field_sum += field.as_str().parse::<f64>().unwrap();
-                }
-            }
-            Rule::EOI => (),
-            _ => unreachable!(),
-        }
-    } */
+fn fahrenheit_to_celcius(temp: f64) -> f64 {
+    (temp - 32.0) / 1.8
+}
+
+fn kelvin_to_celcius(temp: f64) -> f64{
+    temp + 273.15
+}
 
 impl Schedule {
     pub fn from_file(file_name: String) -> Result<Schedule, ScheduleError> {
@@ -342,7 +302,7 @@ impl Schedule {
 
         for s in &self.steps {
             trace!("step: {:?}", s.clone());
-            let (_, step) = parse_step(s.as_str(), prev_step).unwrap();
+            let step = parse_step(s.as_str(), prev_step).unwrap();
             prev_step = Some(step.clone());
 
             steps.push(step)
@@ -444,24 +404,78 @@ mod parser_tests {
     use anyhow::Result;
 
     #[test]
-    fn should_work() -> Result<()> {
+    fn should_parse_holds() -> Result<()> {
         let input = "hold for 30 minutes";
-        parse_grammar(input, None)?;
+        let output = parse_step(input, None)?;
+        assert_eq!(output, NormalizedStep {
+            start_time: 0,
+            end_time: 30 * 60,
+            start_temperature: 0.0,
+            end_temperature: 0.0,
+        }, "input: [{}] failed", input);
+
+        let input = "Hold for 1 hour.";
+        let output = parse_step(input, None)?;
+        assert_eq!(output, NormalizedStep {
+            start_time: 0,
+            end_time: 60 * 60,
+            start_temperature: 0.0,
+            end_temperature: 0.0,
+        }, "input: [{}] failed", input);
+
+        let input = "hold for 10 seconds";
+        let output = parse_step(input, None)?;
+        assert_eq!(output, NormalizedStep {
+            start_time: 0,
+            end_time: 10,
+            start_temperature: 0.0,
+            end_temperature: 0.0,
+        }, "input: [{}] failed", input);
+
         Ok(())
     }
 
     #[test]
-    fn should_parse_holds() -> Result<()> {
-        let input = "hold for 30 minutes";
-        let (_, output) = parse_step(input, None)?;
-
+    fn should_parse_durations() -> Result<()> {
+        let input = "ambient to 200 over 2 hours";
+        let output = parse_step(input, None)?;
         assert_eq!(output, NormalizedStep {
-            start_temperature: 0.0,
-            end_temperature: 0.0,
+            start_temperature: 25.0,
+            end_temperature: 200.0,
+            start_time: 0,
+            end_time: 7200
+        });
+
+
+        let input = "100 to 300 over 30 minutes";
+        let output = parse_step(input, None)?;
+        assert_eq!(output, NormalizedStep {
+            start_temperature: 100.0,
+            end_temperature: 300.0,
             start_time: 0,
             end_time: 30 * 60
         });
+
+        let input = "200 to 700 over 8 hours";
+        let output = parse_step(input, None)?;
+        assert_eq!(output.start_temperature, 200.0);
+        assert_eq!(output.end_temperature, 700.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn should_parse_rates() -> Result<()> {
+        let input = "100 to 120 by 20 per hour";
+        let output = parse_step(input, None)?;
         
+        assert_eq!(output, NormalizedStep {
+            start_temperature: 100.0,
+            end_temperature: 120.0,
+            start_time: 0,
+            end_time: 60 * 60,
+        }, "input: [{}] failed", input);
+
         Ok(())
     }
 
@@ -469,7 +483,7 @@ mod parser_tests {
     fn should_parse_string_to_duration() -> Result<()> {
         // let g = "(#|ambient) to (#|ambient) over # (hour|hours|minute|minutes|seconds)";
         let input = "ambient to 200 over 2 hours";
-        let (_, output) = parse_step(input, None)?;
+        let output = parse_step(input, None)?;
         assert_eq!(output, NormalizedStep {
             start_temperature: 25.0,
             end_temperature: 200.0,
@@ -479,7 +493,7 @@ mod parser_tests {
 
 
         let input = "100 to 300 by 100 degrees per hour";
-        let (_, output) = parse_step(input, None)?;
+        let output = parse_step(input, None)?;
         assert_eq!(output, NormalizedStep {
             start_temperature: 100.0,
             end_temperature: 300.0,
@@ -488,7 +502,7 @@ mod parser_tests {
         });
 
         let input = "200 to 700 over 8 hours";
-        let (_, output) = parse_step(input, None)?;
+        let output = parse_step(input, None)?;
         assert_eq!(output.start_temperature, 200.0);
         assert_eq!(output.end_temperature, 700.0);
 
@@ -498,12 +512,12 @@ mod parser_tests {
     #[test]
     fn should_recognize_ambient() -> Result<()> {
         let input = "ambient to 200 over 2 hours";
-        let (_, output) = parse_step(input, None)?;
+        let output = parse_step(input, None)?;
         assert_eq!(output.start_temperature, 25.0);
         assert_eq!(output.end_temperature, 200.0);
 
         let input = "Ambient to 100 by 20 degrees per hour.";
-        let (_, output) = parse_step(input, None)?;
+        let output = parse_step(input, None)?;
         assert_eq!(output.start_temperature, 25.0);
         assert_eq!(output.end_temperature, 100.0);
     

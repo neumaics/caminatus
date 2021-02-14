@@ -11,12 +11,11 @@ length = { number }
 increment = { temperature }
 
 per = _{( ^"per" | "/" )}
-temperature = _{(^"ambient" | (number+ ~ degree? ~ scale? ))}
+temperature = _{(ambient | (number+ ~ degree? ~ scale? ))}
+ambient = { ^"ambient" }
 
-scale = {("C" | "F" | "K" | "Celsius" | "Fahrenheit" | ^"Kelvin" )}
+scale = {( "C" | "F" | "K" )}
 time_unit = {(^"second" | ^"minute" | ^"hour" )}
-
-// Actually postive real numbers
 number = @{
     ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
     ~ ("." ~ ASCII_DIGIT*)?

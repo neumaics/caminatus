@@ -1,3 +1,5 @@
+use std::{error::Error, fmt::{Display, Formatter, Result}};
+
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -13,6 +15,19 @@ pub enum ScheduleError {
     },
     InvalidJson { },
 }
+
+impl Display for ScheduleError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            ScheduleError::InvalidStep { description }=> write!(f, "invalid step: {}", description),
+            ScheduleError::IOError { description } => write!(f, "error reading {}", description),
+            ScheduleError::InvalidYaml { location }=> write!(f, "error reading yaml: {}", location),
+            ScheduleError::InvalidJson {} => write!(f, "error reading json"),
+        }
+    }
+}
+
+impl Error for ScheduleError {}
 
 impl From<std::io::Error> for ScheduleError {
     fn from(error: std::io::Error) -> ScheduleError {
