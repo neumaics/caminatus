@@ -11,34 +11,21 @@ use nom::{
     branch::alt,
     combinator::{map_res, opt},
 };
-use serde::{Serialize, Deserialize};
+
+use serde::{Deserialize, Serialize};
+use tracing::trace;
+
+use pest::Parser;
 use uuid::Uuid;
 
 use super::error::ScheduleError;
 
-// TODO: use std::time::Duration
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Duration {
-    pub value: u32,
-    pub unit: TimeUnit
-}
+#[derive(pest_derive::Parser)]
+#[grammar = "schedule/step.pest"]
+struct StepParser;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate {
-    pub value: u16,
-    pub unit: TimeUnit
-}
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 
-// TODO: Add optional hold period.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Step {
-    pub description: Option<String>,
-    pub start_temperature: f64,
-    pub end_temperature: f64,
-    pub duration: Option<Duration>,
-    pub rate: Option<Rate>
-}
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
 pub struct NormalizedStep {
     pub start_time: u32,
     pub end_time: u32,
@@ -238,6 +225,64 @@ pub fn parse_step(input: &str, prev: Option<NormalizedStep>) -> IResult<&str, No
 
     Ok((input, step))
 }
+
+fn parse_grammar(input: &str, prev: Option<NormalizedStep>) -> Result<()> {
+    let parsed = StepParser::parse(Rule::step, input)?.next().unwrap();
+
+    let p = match parsed.as_rule() {
+        Rule::hold => {
+            let time = 0;
+            let unit = TimeUnit::Seconds;
+            
+            for r in parsed.into_inner() {
+                match r.as_rule() {
+                    Rule::number => std::println!("number {:?}", r.as_str()),
+                    Rule::time_unit => std::println!("timeunit {:?}", r.as_str()),
+                    _=> ()
+                }
+            }
+            ""
+        },
+        Rule::duration => "",
+        Rule::rate => "",
+        _ => "",      
+    };
+
+    // let t: Rule = parsed.as_rule();
+
+    // t match {
+    //     Rule::hold => "",
+    //     Rule::duration => ""
+    //     Rule::rate => "",
+    //     _ => "",
+    // }
+    
+
+    // for record in parsed {
+    //     Rule::number =>"",
+    //     Rule::
+    // }
+    // parsed.as_rule() match {
+    //     _ => ""
+    // };
+
+    
+    Ok(())
+}
+/*
+for record in file.into_inner() {
+        match record.as_rule() {
+            Rule::record => {
+                record_count += 1;
+
+                for field in record.into_inner() {
+                    field_sum += field.as_str().parse::<f64>().unwrap();
+                }
+            }
+            Rule::EOI => (),
+            _ => unreachable!(),
+        }
+    } */
 
 impl Schedule {
     pub fn from_file(file_name: String) -> Result<Schedule, ScheduleError> {
@@ -444,6 +489,13 @@ impl Step {
 mod parser_tests {
     use super::*;
     use anyhow::Result;
+
+    #[test]
+    fn should_work() -> Result<()> {
+        let input = "hold for 30 minutes";
+        parse_grammar(input, None)?;
+        Ok(())
+    }
 
     #[test]
     fn should_parse_holds() -> Result<()> {

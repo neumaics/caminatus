@@ -1,0 +1,25 @@
+step = _{( duration | rate | hold )}
+WHITESPACE = _{ " " }
+
+duration = { ^"from"? ~ from ~ ^"to" ~ to ~ ^"over" ~ length ~ time_unit }
+rate = { ^"from"? ~ from ~ ^"to" ~ to ~ ^"by" ~ increment ~ per ~ time_unit }
+hold = { ^"hold for" ~ number ~ time_unit }
+
+from = { temperature }
+to = { temperature }
+length = { number }
+increment = { temperature }
+
+per = _{( ^"per" | "/" )}
+temperature = _{(^"ambient" | (number+ ~ degree? ~ scale? ))}
+
+scale = {("C" | "F" | "K" | "Celsius" | "Fahrenheit" | ^"Kelvin" )}
+time_unit = {(^"second" | ^"minute" | ^"hour" )}
+
+// Actually postive real numbers
+number = @{
+    ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+    ~ ("." ~ ASCII_DIGIT*)?
+}
+
+degree = _{ "degrees" | "°" | "degree" }
