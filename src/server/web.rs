@@ -3,7 +3,6 @@ use std::time::Duration;
 use anyhow::Result;
 use futures::{Stream, StreamExt};
 use serde_json;
-use tracing::{info};
 use tokio::sync::mpsc;
 use tokio::sync::broadcast::Sender;
 use tokio_stream::wrappers::UnboundedReceiverStream;

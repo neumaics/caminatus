@@ -10,7 +10,7 @@ use tokio::task;
 use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
 
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument, trace};
 use uuid::Uuid;
 
 use crate::schedule::NormalizedSchedule;
@@ -132,7 +132,7 @@ impl Kiln {
                 };
                 let update = serde_json::to_string(&update).expect("expected valid kiln update serialization");
 
-                info!("{}", &update);
+                trace!("{}", &update);
 
                 let _ = update_tx.send(Command::Update {
                     channel: channel.to_string(),
@@ -144,7 +144,7 @@ impl Kiln {
         let handler_queue = queue.clone();
         let _ = task::spawn(async move {
             while let Some(event) = rx.recv().await {
-                info!("kiln got event");
+                trace!("kiln got event");
                 match event {
                     KilnEvent::Start(schedule) => handler_queue.lock().expect("unable to lock").push_back(KilnEvent::Start(schedule)),
                     KilnEvent::Stop => handler_queue.lock().expect("unable to lock").push_back(KilnEvent::Stop),

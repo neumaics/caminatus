@@ -2,23 +2,7 @@ name: slow bisque
 description: drive off all of the moisture before rateing up
 scale: Celsius
 steps:
-    - description: Get temperature up from ambient.
-      start_temperature: 0
-      end_temperature: 100
-      rate:
-          value: 20
-          unit: Hours
-    - description: Hold to drive off moisture
-      start_temperature: 100
-      end_temperature: 100
-      duration:
-          value: 1
-          unit: Hour
-      rate:
-          value: 20
-          unit: Hours
-    - start_temperature: 100
-      end_temperature: 800
-      rate:
-          value: 200
-          unit: Hours
+  - 100 by 20/hour #Get temperature up from ambient.
+  - hold for 1 hour
+  - 100 to 800 by 200/hour
+
