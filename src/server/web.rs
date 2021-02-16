@@ -223,7 +223,7 @@ fn on_connect(manager: &Sender<Command>) -> impl Stream<Item = Result<Event, war
     let _ = manager.send(Command::ClientRegister { id, sender: tx });
 
     rx.map(|msg| match msg {
-        Message::UserId(id) => Ok(Event::default().event("system").data(id.to_string())),
+        Message::UserId(id) => Ok(Event::default().event("id").data(id.to_string())),
         Message::Update { channel, data } => Ok(Event::default().event(channel).data(data)),
     })
 }

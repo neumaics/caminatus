@@ -85,7 +85,8 @@ impl Kiln {
             let mut runtime: u32 = 0;
             let mut schedule: Option<NormalizedSchedule> = None;
             let mut state = KilnState::Idle;
-    
+            let mut pid = PID::init(1.0, 2.0, 3.0);
+
             loop {
                 let temperature = &thermocouple.read().unwrap();
                 let mut set_point: f64 = 0.0;
@@ -110,7 +111,10 @@ impl Kiln {
                 match state {
                     KilnState::Running => {
                         set_point = schedule.clone().expect("valid").target_temperature(runtime);
+                        let p = pid.compute(&set_point, temperature);
+                        let f = FuzzyController::init().compute(0.0, 0.0); //ugh
 
+                        info!("[p = {}][f = {}]", &p, &f);
                         heater.on();
                         sleep(Duration::from_millis((interval / 2) as u64)).await;
                         heater.off();
@@ -168,7 +172,6 @@ impl std::fmt::Display for KilnError {
         write!(f, "Kiln Error")
     }
 }
-
 pub struct FuzzyController {
     engine: rsfuzzy::Engine
 }
@@ -176,7 +179,7 @@ pub struct FuzzyController {
 impl FuzzyController {
 /// Ripped off from
 ///   https://github.com/auseckas/rsfuzzy
-    pub fn fuzzy() -> FuzzyController {
+    pub fn init() -> FuzzyController {
         let mut f_engine = rsfuzzy::Engine::new();
 
         let i_var1 = fz_input_var![
@@ -238,42 +241,42 @@ impl FuzzyController {
 
 #[derive(Debug)]
 struct PID {
-    k_i: f32,
-    k_p: f32,
-    k_d: f32,
+    k_i: f64,
+    k_p: f64,
+    k_d: f64,
     last_now: std::time::SystemTime,
-    i_term: f32,
-    last_error: f32,
+    i_term: f64,
+    last_error: f64,
 }
 
 ///  A pretty blatant ripoff/rewrite of:
 ///    https://github.com/jbruce12000/kiln-controller/blob/master/lib/oven.py#L322
 impl PID {
-    fn init(k_i: f32, k_p: f32, k_d: f32) -> PID {
+    fn init(k_i: f64, k_p: f64, k_d: f64) -> PID {
         PID {
-            k_i: k_i,
-            k_p: k_p,
-            k_d: k_d,
+            k_i,
+            k_p,
+            k_d,
             last_now: SystemTime::now(),
             i_term: 0.0,
             last_error: 0.0,
         }
     }
 
-    fn compute(&mut self, set_point: f32, is_point: f32) -> f32 {
+    fn compute(&mut self, set_point: &f64, is_point: &f64) -> f64 {
         let now = SystemTime::now();
         let delta: u64 = self.last_now.elapsed().unwrap().as_secs();
 
-        let error: f32 = set_point - is_point;
+        let error: f64 = *set_point - *is_point;
 
-        self.i_term += error * delta as f32 * self.k_i;
+        self.i_term += error * delta as f64 * self.k_i;
         let mut sorted = vec![-1.0, self.i_term, 1.0];
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         self.i_term = sorted[1];
     
-        let d_error = (error - self.last_error) / delta as f32;
+        let d_error = (error - self.last_error) / delta as f64;
 
-        let o: f32 = (self.k_p * error) + self.i_term + self.k_d * d_error;
+        let o: f64 = (self.k_p * error) + self.i_term + self.k_d * d_error;
         let mut sorted = vec![-1.0, o, 1.0];
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 

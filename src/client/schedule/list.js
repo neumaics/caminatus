@@ -28,7 +28,7 @@ const ScheduleMenu = styled.div`
 export const Schedules = () => {
   const [schedules, setSchedules] = useState([]);
 
-  const getSchedules = () => fetch('http://localhost:8080/schedules')
+  const getSchedules = () => fetch(`http://${location.host}/schedules`)
     .then(response => response.json())
     .then(setSchedules);
   

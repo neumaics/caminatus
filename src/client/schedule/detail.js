@@ -30,11 +30,9 @@ const StepTable = styled.table`
 export const Schedule = ({ params }) => {
   const [schedule, setSchedule] = useState(null);
 
-  const getScheduleInfo = () => fetch(`http://localhost:8080/schedules/${params.scheduleName}`)
+  const getScheduleInfo = () => fetch(`http://${location.host}/schedules/${params.scheduleName}`)
     .then(response => response.json())
     .then(setSchedule);
-
-  // const graphData = schedule && toGraph(schedule);
 
   const graph = (
     <div></div>
@@ -49,21 +47,12 @@ export const Schedule = ({ params }) => {
       {/* <div>{schedule.scale}</div> */}
       <StepTable>
         <thead>
-          <tr>
-            <th></th>
-            <th>start</th>
-            <th>end</th>
-            <th>increment</th>
-            <th>time</th>
-          </tr>
         </thead>
         <tbody>
           {schedule.steps.map((s, i) => (<tr key={i}>
             <td>{i + 1}</td>
-            <td>{s.start_temperature}</td>
-            <td>{s.end_temperature}</td>
-            <td>{s.rate ? s.rate.value : s.duration.value}</td>
-            <td>{s.rate ? s.rate.unit : s.duration.unit}</td>
+            <td>{s}</td>
+
           </tr>))}
         </tbody>
       </StepTable>

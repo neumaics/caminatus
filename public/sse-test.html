@@ -24,7 +24,7 @@
       };
 
       sse.onopen = () => chat.innerHTML = '<p><em>Connected!</em></p>';
-      sse.addEventListener('system', (msg) => {
+      sse.addEventListener('id', (msg) => {
         console.log(msg.data)
         user_id = msg.data
 
