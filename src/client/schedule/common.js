@@ -95,7 +95,7 @@ export const toServiceSchema = (clientSchedule) => {
 };
 
 export const save = (schedule) => 
-  fetch('http://localhost:8080/schedules', {
+  fetch(`http://${location.host}:8080/schedules`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

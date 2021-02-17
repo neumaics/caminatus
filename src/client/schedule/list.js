@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link } from 'wouter';
 
+import { StatusBar } from '../status';
+
 const ScheduleGrid = styled.div`
   display: grid;
   grid-auto-rows: 3em;
@@ -45,6 +47,7 @@ export const Schedules = () => {
 
   return (
     <>
+      <StatusBar></StatusBar>
       <ScheduleMenu>
         <button><Link href='/app/schedules/create'>+</Link></button>
       </ScheduleMenu>
