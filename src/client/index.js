@@ -9,7 +9,7 @@ html {
   height: 100%;
   background-color: #2C3033;
   color: #fff;
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Work Sans', sans-serif;
 }
 
 body {

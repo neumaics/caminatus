@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { Link, useRoute } from 'wouter';
+import { StatusBar } from './status';
 
 // TODO: use theme to pull colors...?
 const NavBar = styled.nav`
@@ -48,5 +49,6 @@ NavBarLink.propTypes = {
 
 export const Nav = () => (
   <NavBar>
+    <StatusBar></StatusBar>
     <NavBarLink href='/app/schedules'>Schedules</NavBarLink>
   </NavBar>);
