@@ -17,7 +17,7 @@ use super::error::ScheduleError;
 #[grammar = "schedule/step.pest"]
 struct StepParser;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
 pub struct NormalizedStep {
     pub start_time: u32,
     pub end_time: u32,
@@ -314,6 +314,10 @@ impl Schedule {
             scale: self.scale,
             steps: steps,
         })
+    }
+
+    pub fn parse(input: &String) -> Result<NormalizedStep, > {
+        parse_step(input.as_str(), None)
     }
 
     pub fn all(schedule_directory: &String) -> Vec<String> {
