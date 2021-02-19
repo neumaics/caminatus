@@ -139,6 +139,27 @@ impl Web {
                         .body(format!("{:?}", error)),
                 }
             });
+        
+        let normalize = warp::get()
+            .and(warp::path("schedules"))
+            .and(warp::path::param())
+            .and(warp::path("normalize"))
+            .and(dir.clone())
+            .map(|id: String, directory: String| match Schedule::by_name(&id, &directory) {
+                Ok(s) => Response::builder()
+                    .status(warp::http::StatusCode::OK)
+                    .body(serde_json::to_string(&s.normalize().unwrap()).unwrap()),
+                Err(error) => match error {
+                    ScheduleError::IOError { description: _ } => Response::builder()
+                        .status(warp::http::StatusCode::NOT_FOUND)
+                        // TODO: make this a struct
+                        .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)), 
+                    _ => Response::builder()
+                        .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(format!("{:?}", error)),
+                }
+            });
+
 
         let new_schedule = warp::post()
             .and(warp::path("schedules"))
@@ -177,6 +198,7 @@ impl Web {
             .map(|schedule_id: String, directory: String| Schedule::delete(schedule_id, &directory).unwrap());
 
         schedules
+            .or(normalize)
             .or(schedule)
             .or(new_schedule)
             .or(update_schedule)

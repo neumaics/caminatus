@@ -6,9 +6,7 @@ use std::io::prelude::*;
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
-
 use pest::Parser;
-
 use uuid::Uuid;
 
 use super::error::ScheduleError;
@@ -79,7 +77,7 @@ impl std::str::FromStr for TemperatureScale {
 }
 
 /// Variant of the Schedule, but is normalized to cumulative seconds
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct NormalizedSchedule {
     pub name: String,
     pub description: Option<String>,
@@ -239,8 +237,8 @@ fn fahrenheit_to_celcius(temp: f64) -> f64 {
     (temp - 32.0) / 1.8
 }
 
-fn kelvin_to_celcius(temp: f64) -> f64{
-    temp + 273.15
+fn kelvin_to_celcius(temp: f64) -> f64 {
+    temp - 273.15
 }
 
 impl Schedule {
@@ -312,7 +310,7 @@ impl Schedule {
             name: self.name,
             description: self.description,
             scale: self.scale,
-            steps: steps,
+            steps,
         })
     }
 
