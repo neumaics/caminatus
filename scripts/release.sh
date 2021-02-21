@@ -7,6 +7,7 @@ set -x CROSS_DOCKER_IN_DOCKER true
 #set -x TARGET armv7-unknown-linux-gnueabihf # RPi 3, 4
 set -x TARGET arm-unknown-linux-gnueabihf # RPi Zero
 
+npm run build
 cross build --release --examples --target $TARGET
 cross build --release --target $TARGET
 
@@ -22,7 +23,9 @@ end
 
 mkdir -p ./target/$TARGET/package/caminatus-0.0.0/examples
 mkdir ./target/$TARGET/package/caminatus-0.0.0/schedules
+mkdir ./target/$TARGET/package/caminatus-0.0.0/public
 
+cp ./public/* ./target/$TARGET/package/caminatus-0.0.0/public
 cp ./target/$TARGET/release/caminatus ./target/$TARGET/package/caminatus-0.0.0
 cp ./schedules/* ./target/$TARGET/package/caminatus-0.0.0/schedules
 cp ./config.yaml.example ./target/$TARGET/package/caminatus-0.0.0

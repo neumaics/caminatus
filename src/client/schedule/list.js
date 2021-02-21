@@ -4,9 +4,10 @@ import { Link } from 'wouter';
 
 const ScheduleGrid = styled.div`
   display: grid;
-  grid-auto-rows: 3em;
+  /*grid-auto-rows: 3em;*/
   border-radius: 0.5em;
   overflow: hidden;
+  width: 100%;
 `;
 
 const ScheduleItem = styled.div`
@@ -46,7 +47,7 @@ export const Schedules = () => {
   return (
     <>
       <ScheduleMenu>
-        <button><Link href='/app/schedules/create'>+</Link></button>
+        {/* <button><Link href='/app/schedules/create'>+</Link></button> */}
       </ScheduleMenu>
       <ScheduleGrid>
         {scheduleItems}

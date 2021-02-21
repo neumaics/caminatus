@@ -12,7 +12,7 @@ use warp::{filters::BoxedFilter, Filter, Reply, http::{Response, StatusCode}};
 
 use crate::server::{Message, Command};
 use crate::config::Config;
-use crate::schedule::{Schedule, ScheduleError};
+use crate::schedule::Schedule;
 
 pub mod error;
 mod schedules;
@@ -103,7 +103,7 @@ impl Web {
                             .body(body)
                     },
                     Err(e) => {
-                        let body = format!(r#"{{ "message": "error parsing request", "error": "{:?}""#, e);
+                        let body = format!(r#"{{ "message": "error parsing request", "error": "{:?}" }}"#, e);
                         Response::builder()
                             .status(StatusCode::BAD_REQUEST)
                             .body(body)

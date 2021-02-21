@@ -29,8 +29,10 @@
         user_id = msg.data
 
         fetch(`http://${location.host}/subscribe/${user_id}/kiln`, { method: 'post' }).then(console.log);
+        fetch(`http://${location.host}/subscribe/${user_id}/log`, { method: 'post' }).then(console.log);
       });
       sse.addEventListener('kiln', msg => message(msg.data));
+      sse.addEventListener('log', msg => console.log(msg.data.trim()));
 
       sse.onmessage = (msg) => message(msg.data);
     </script>
