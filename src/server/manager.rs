@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::config::Config;
 use crate::server::{Message, Monitor, Command, Web};
 use crate::device::{Kiln, KilnEvent};
+use crate::server::log;
 
 type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Message>)>>>>;
 type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
@@ -27,7 +28,11 @@ impl Manager {
     pub async fn start(conf: Config) -> Result<Manager> {
         debug!("starting manager");
         let (b_tx, b_rx): (broadcast::Sender<Command>, broadcast::Receiver<Command>) = broadcast::channel(32);
-        tracing_subscriber::fmt::init();
+
+        let l_tx = b_tx.clone();
+        tracing_subscriber::fmt()
+            .with_writer(move || { (log::StreamWriter { sender: l_tx.clone() }).init() })
+            .init();
 
         let web = Web::start(conf.clone(), b_tx.clone());
         let kiln = Kiln::start(conf.thermocouple_address, conf.gpio.heater, conf.poll_interval, b_tx.clone(), conf.kiln).await?;
@@ -117,18 +122,16 @@ impl Manager {
                 },
                 Command::Update { channel, data } => {
                     let mut locked = subscriptions.lock().unwrap();
-                    trace!("updating the [{}] channel with new data", channel);
 
                     if locked.contains_key(&channel) {
-                        locked.get_mut(&channel).unwrap().retain(|(id, sender)| {
-                            trace!("updating the user [id {}] with new data", id);
+                        locked.get_mut(&channel).unwrap().retain(|(_id, sender)| {
                             sender.send(Message::Update {
                                 channel: channel.clone(),
                                 data: data.clone(),
                             }).is_ok()
                         });
                     } else {
-                        error!("attempting to update a channel that doesn't exist");
+                        // error!("attempting to update a channel that doesn't exist");
                     }
                 },
                 Command::Ping => Manager::handle_ping(&clients),

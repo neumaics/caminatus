@@ -9,3 +9,5 @@ pub use monitor::Monitor;
 
 pub mod web;
 pub use web::Web;
+
+pub mod log;
