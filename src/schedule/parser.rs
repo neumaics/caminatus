@@ -363,6 +363,10 @@ impl Schedule {
         fs::remove_file(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
         Ok(id)
     }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
 }
 
 impl NormalizedSchedule {
@@ -397,6 +401,10 @@ impl NormalizedSchedule {
         let mut iter = self.steps.iter();
         let step = iter.find(|&&s| s.start_time <= time && time <= s.end_time);
         step
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }
 

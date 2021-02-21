@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde_json;
-use warp::{filters::BoxedFilter, Filter, Reply, http::{Response, StatusCode}};
+use warp::{filters::BoxedFilter, Filter, Reply, http, http::{Response, StatusCode}};
 
 use crate::schedule::{Schedule, ScheduleError};
 use super::error::ErrorResponse;
@@ -55,7 +55,6 @@ pub fn routes(directory: Option<String>) -> BoxedFilter<(impl Reply,)> {
         .map(delete);
 
     schedules
-
         .or(schedule)
         .or(new_schedule)
         .or(update_schedule)
@@ -63,13 +62,13 @@ pub fn routes(directory: Option<String>) -> BoxedFilter<(impl Reply,)> {
         .boxed()
 }
 
-fn list(directory: String) -> Result<Response<String>, warp::http::Error> {
+fn list(directory: String) -> Result<Response<String>, http::Error> {
     Response::builder()
         .status(StatusCode::OK)
         .body(serde_json::to_string(&Schedule::all(&directory)).unwrap())
 }
 
-fn by_name(directory: String, name: String, params: ScheduleParams) -> Result<Response<String>, warp::http::Error> {
+fn by_name(directory: String, name: String, params: ScheduleParams) -> Result<Response<String>, http::Error> {
     let norm = params.normalize.unwrap_or(false);
 
     match Schedule::by_name(&name, &directory) {
@@ -77,13 +76,13 @@ fn by_name(directory: String, name: String, params: ScheduleParams) -> Result<Re
             if norm {
                 Response::builder()
                     .status(StatusCode::OK)
-                    .body(serde_json::to_string(&s.normalize().unwrap()).unwrap())
+                    .body(s.normalize().unwrap().to_json())
             } else {
                 Response::builder()
                     .status(StatusCode::OK)
-                    .body(serde_json::to_string(&s).unwrap())
+                    .body(s.to_json())
             }
-        }
+        },
         Err(error) => match error {
             ScheduleError::IOError { description } => Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -94,43 +93,52 @@ fn by_name(directory: String, name: String, params: ScheduleParams) -> Result<Re
             _ => Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse {
-                    message: "unknown error".to_string(),
+                    message: "unknown error querying for schedule".to_string(),
                     error: format!("{:?}", error)
                 }.to_string()),
         }
     }
 }
 
-fn new(directory: String, schedule: Schedule) -> Result<Response<String>, warp::http::Error> {
+fn new(directory: String, schedule: Schedule) -> Result<Response<String>, http::Error> {
     match Schedule::new(schedule, &directory) {
         Ok(s) => Response::builder()
             .status(StatusCode::OK)
-            .body(serde_json::to_string(&s).unwrap()),
-        Err(err) => Response::builder()
+            .body(s),
+        Err(error) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(format!("{:?}", err)),
+            .body(ErrorResponse {
+                message: "unknown error creating new schedule".to_string(),
+                error: format!("{:?}", error)
+            }.to_string()),
     }
 }
 
-fn update(directory: String, schedule: Schedule, name: String) -> Result<Response<String>, warp::http::Error> {
+fn update(directory: String, schedule: Schedule, name: String) -> Result<Response<String>, http::Error> {
     match Schedule::update(name, schedule, &directory) {
         Ok(s) => Response::builder()
             .status(StatusCode::OK)
-            .body(serde_json::to_string(&s).unwrap()),
-        Err(err) => Response::builder()
+            .body(s),
+        Err(error) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(format!("{:?}", err)),
+            .body(ErrorResponse {
+                message: "unknown error updating schedule".to_string(),
+                error: format!("{:?}", error)
+            }.to_string()),
     }
 }
 
-fn delete(directory: String, name: String) -> Result<Response<String>, warp::http::Error> {
+fn delete(directory: String, name: String) -> Result<Response<String>, http::Error> {
     match Schedule::delete(name, &directory) {
         Ok(s) => Response::builder()
         .status(StatusCode::OK)
         .body(s),
-    Err(err) => Response::builder()
+    Err(error) => Response::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body(format!("{:?}", err)),
+        .body(ErrorResponse {
+            message: "unknown error deleting schedule".to_string(),
+            error: format!("{:?}", error)
+        }.to_string()),
     }
 }
 
@@ -190,7 +198,6 @@ mod route_tests {
     
         assert_eq!(response.status(), 200);
     }
-
     
     #[tokio::test]
     async fn should_validate_normalize_parameter() {

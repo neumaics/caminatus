@@ -16,7 +16,7 @@ use crate::schedule::{Schedule, ScheduleError};
 
 pub mod error;
 mod schedules;
-
+mod device;
 pub struct Web { }
 
 impl Web {
@@ -69,7 +69,7 @@ impl Web {
                 .or(app)
                 .or(connect)
                 .or(subscribe)
-                .or(Web::device_routes(Some("./schedules".to_string()), m3))
+                .or(device::routes(Some("./schedules".to_string()), m3))
                 .or(schedules::routes(Some("./schedules".to_string())))
                 .or(Web::step_routes());
 
@@ -113,68 +113,6 @@ impl Web {
 
         step.boxed()
     }    
-
-    pub fn device_routes(directory: Option<String>, manager: Sender<Command>) -> BoxedFilter<(impl Reply,)> {
-        let dir = directory.unwrap_or("./schedules".to_string());
-        let dir = warp::any().map(move || dir.clone());
-        let m2 = manager.clone();
-        let m3 = manager.clone();
-        let manager2 = warp::any().map(move || m2.clone());
-        let manager3 = warp::any().map(move || m3.clone());
-        
-        let start = warp::get()
-            .and(dir.clone())
-            .and(manager2)
-            .and(warp::path("device"))
-            .and(warp::path("kiln"))
-            .and(warp::path::param())
-            .and(warp::path("start"))
-            .map(|directory: String, m: Sender<Command>, id: String| match Schedule::by_name(&id, &directory) {
-                Ok(s) => {
-                    let normalized = s.normalize();
-
-                    match normalized {
-                        Ok(schedule) => {
-                            m.clone().send(Command::StartSchedule { schedule }).expect("unable to send command to manager");
-                            Response::builder()
-                                .status(warp::http::StatusCode::OK)
-                                .body("{ \"message\": \"started\" }".to_string())
-                        }
-                        Err(e) => {
-                            Response::builder()
-                                .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
-                                // TODO: make this a struct
-                                .body(format!("{{\"message\": \"error starting schedule with id: [{}]\", \"error\": \"{:?}\" }}", id, e))
-                        }
-                    }
-                    
-                },
-                Err(error) => match error {
-                    ScheduleError::IOError { description: _ } => Response::builder()
-                        .status(warp::http::StatusCode::NOT_FOUND)
-                        // TODO: make this a struct
-                        .body(format!("{{\"message\": \"cannot find schedule with id [{}]\"}}", id)), 
-                    _ => Response::builder()
-                        .status(warp::http::StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(format!("{:?}", error)),
-                }
-            });
-
-        let stop = warp::get()
-            .and(manager3)
-            .and(warp::path("device"))
-            .and(warp::path("kiln"))
-            .and(warp::path("stop"))
-            .map(|m: Sender<Command>| {
-                m.clone().send(Command::StopSchedule).expect("unable to send command to manager");
-                Response::builder()
-                    .status(warp::http::StatusCode::OK)
-                    .body("{ \"message\": \"stopped\" }".to_string())
-
-            });
-
-        start.or(stop).boxed()
-    }
 }
 
 fn on_connect(manager: &Sender<Command>) -> impl Stream<Item = Result<Event, warp::Error>> + Send + 'static {

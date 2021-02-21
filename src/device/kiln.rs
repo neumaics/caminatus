@@ -9,7 +9,7 @@ use rsfuzzy::*;
 use tokio::task;
 use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
-use tracing::{info, instrument, trace};
+use tracing::{error, info, instrument, trace, warn};
 use uuid::Uuid;
 
 use crate::config::KilnConfig;
@@ -17,7 +17,7 @@ use crate::schedule::NormalizedSchedule;
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
 
-#[derive(Copy, Clone, Debug, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize)]
 pub enum KilnState {
     Idle,
     Running,
@@ -33,7 +33,7 @@ pub struct RunState {
 #[derive(Debug)]
 pub enum KilnEvent {
     Complete,
-    Start(NormalizedSchedule),
+    Start(NormalizedSchedule, ),
     Started,
     Stop,
     Stopped,
@@ -97,11 +97,20 @@ impl Kiln {
 
                 match maybe_update {
                     Some(KilnEvent::Start(s)) => {
-                        state = KilnState::Running;
-                        runtime = 0;
-                        schedule = Some(s);
+                        if state == KilnState::Running {
+                            error!("attempting to start a schedule while a schedule is already running");
+                        } else {
+                            info!(name = s.name.as_str(), message = "starting schedule");
+                            state = KilnState::Running;
+                            runtime = 0;
+                            schedule = Some(s);
+                        }
                     },
                     Some(KilnEvent::Stop) | Some(KilnEvent::Complete)=> {
+                        if state == KilnState::Idle {
+                            warn!("attempting to stop already idle kiln");
+                        }
+
                         state = KilnState::Idle;
                         runtime = 0;
                         schedule = None;
@@ -113,20 +122,23 @@ impl Kiln {
                     KilnState::Running => {
                         set_point = schedule.clone().expect("valid").target_temperature(runtime);
                         let p = pid.compute(&set_point, temperature);
-                        let f = FuzzyController::init().compute(0.0, 0.0); //ugh
+                        let _f = FuzzyController::init().compute(0.0, 0.0); //ugh
+                        let on_time = (interval as f64 * p).floor() as u64;
+                        let off_time = (interval as u64) - on_time;
 
-                        info!("[p = {}][f = {}]", &p, &f);
+                        info!(on_time, off_time);
                         heater.on();
-                        sleep(Duration::from_millis((interval / 2) as u64)).await;
+                        sleep(Duration::from_millis(on_time)).await;
                         heater.off();
-                        sleep(Duration::from_millis((interval / 2) as u64)).await;
+                        sleep(Duration::from_millis(off_time)).await;
 
                         runtime += interval / 1000;
 
                         if runtime > schedule.clone().expect("valid").total_duration() {
+                            info!("schedule complete, stopping kiln");
                             update_queue.lock().expect("unable to lock update queue").push_back(KilnEvent::Complete);
                         }
-                    },
+                    }
                     KilnState::Idle => {
                         sleep(Duration::from_millis((interval) as u64)).await;
                     },
