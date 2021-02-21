@@ -10,5 +10,10 @@ poll_interval: 10000
 # The i2c address for the MCP960X
 thermocouple_address: 0x60
 
+kiln:
+    proportional: 1
+    integral: 2
+    derivitave: 3
+    
 gpio:
     heater: 12

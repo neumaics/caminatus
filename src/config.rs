@@ -4,7 +4,7 @@ use std::fs;
 use std::net::Ipv4Addr;
 use std::path::Path;
 
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_CONFIG_FILE: &str = "./config.yaml";
 const DEFAULT_LOG_LEVEL: &str = "info";
@@ -16,8 +16,15 @@ struct ConfigFile {
     pub poll_interval: Option<u32>,
     pub thermocouple_address: u16,
     pub gpio: GpioConfig,
+    pub kiln: KilnConfig,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KilnConfig {
+    pub proportional: f64,
+    pub integral: f64,
+    pub derivative: f64,
+}
 #[derive(Debug, Deserialize)]
 struct WebConfigSection {
     pub port: u16,
@@ -37,6 +44,7 @@ pub struct Config {
     pub poll_interval: u32,
     pub thermocouple_address: u16,
     pub gpio: GpioConfig,
+    pub kiln: KilnConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -92,7 +100,12 @@ impl TryFrom<ConfigFile> for Config {
                 heater: value.gpio.heater,
             },
             poll_interval: value.poll_interval.unwrap_or(1000), // TODO: enforce value greater than 0
-            thermocouple_address: value.thermocouple_address
+            thermocouple_address: value.thermocouple_address,
+            kiln: KilnConfig {
+                proportional: value.kiln.proportional,
+                integral: value.kiln.integral,
+                derivative: value.kiln.derivative,
+            }
         };
 
         Ok(conf)

@@ -30,7 +30,7 @@ impl Manager {
         tracing_subscriber::fmt::init();
 
         let web = Web::start(conf.clone(), b_tx.clone());
-        let kiln = Kiln::start(conf.thermocouple_address, conf.gpio.heater, conf.poll_interval, b_tx.clone()).await?;
+        let kiln = Kiln::start(conf.thermocouple_address, conf.gpio.heater, conf.poll_interval, b_tx.clone(), conf.kiln).await?;
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
         let clients = ClientList::default();

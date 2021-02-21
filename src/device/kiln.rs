@@ -12,6 +12,7 @@ use tokio::time::sleep;
 use tracing::{info, instrument, trace};
 use uuid::Uuid;
 
+use crate::config::KilnConfig;
 use crate::schedule::NormalizedSchedule;
 use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
@@ -69,7 +70,8 @@ impl Kiln {
         thermocouple_address: u16,
         heater_pin: u8,
         interval: u32,
-        manager_sender: broadcast::Sender<Command>
+        manager_sender: broadcast::Sender<Command>,
+        config: KilnConfig,
     ) -> Result<mpsc::Sender<KilnEvent>> {
         info!("starting kiln");
         let channel = "kiln";
@@ -84,7 +86,7 @@ impl Kiln {
             let mut runtime: u32 = 0;
             let mut schedule: Option<NormalizedSchedule> = None;
             let mut state = KilnState::Idle;
-            let mut pid = PID::init(1.0, 2.0, 3.0);
+            let mut pid = PID::init(config.integral, config.proportional, config.derivative);
 
             loop {
                 let temperature = &thermocouple.read().unwrap();
