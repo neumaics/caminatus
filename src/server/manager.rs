@@ -9,7 +9,7 @@ use tracing::{debug, error, instrument, trace};
 use uuid::Uuid;
 
 use crate::config::Config;
-use crate::server::{Message, Monitor, Command, Web};
+use crate::server::{Message, Monitor, Command, web};
 use crate::device::{Kiln, KilnEvent};
 use crate::server::log;
 
@@ -34,7 +34,7 @@ impl Manager {
             .with_writer(move || { (log::StreamWriter { sender: l_tx.clone() }).init() })
             .init();
 
-        let web = Web::start(conf.clone(), b_tx.clone());
+        let web_service = web::start(conf.clone(), b_tx.clone());
         let kiln = Kiln::start(conf.thermocouple_address, conf.gpio.heater, conf.poll_interval, b_tx.clone(), conf.kiln).await?;
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
@@ -46,7 +46,7 @@ impl Manager {
             let _ = Manager::process_commands(b_rx, subscriptions, services, clients, kiln).await;
         });
 
-        let _ = join!(proc, web);
+        let _ = join!(proc, web_service);
 
         Ok(Manager {
             sender: b_tx,

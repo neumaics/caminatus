@@ -7,7 +7,6 @@ pub use manager::Manager;
 pub mod monitor;
 pub use monitor::Monitor;
 
-pub mod web;
-pub use web::Web;
-
 pub mod log;
+
+pub mod web;
