@@ -1,5 +1,5 @@
-use caminatus::Config;
 use caminatus::server::Manager;
+use caminatus::Config;
 
 use anyhow::Result;
 

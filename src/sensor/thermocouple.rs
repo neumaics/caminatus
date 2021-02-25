@@ -2,22 +2,16 @@ use rppal::i2c;
 
 #[derive(Debug)]
 pub enum ThermocoupleError {
-    UnsupportedPlatform {
-        message: String,
-    },
+    UnsupportedPlatform { message: String },
     OpenCircuit,
     ShortCircuit,
     Unknown,
-    I2CError {
-        source: i2c::Error
-    }
+    I2CError { source: i2c::Error },
 }
 
 impl From<i2c::Error> for ThermocoupleError {
     fn from(error: i2c::Error) -> ThermocoupleError {
-        ThermocoupleError::I2CError {
-            source: error
-        }
+        ThermocoupleError::I2CError { source: error }
     }
 }
 
@@ -53,7 +47,6 @@ impl SPI for Simulated {
 }
 
 impl Thermocouple for Simulated {
-
     fn read_internal(self) -> f64 {
         self.next_internal
     }

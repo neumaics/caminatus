@@ -6,7 +6,7 @@ use serde_json;
 #[derive(Serialize)]
 pub struct ErrorResponse {
     pub message: String,
-    pub error: String
+    pub error: String,
 }
 
 impl Display for ErrorResponse {

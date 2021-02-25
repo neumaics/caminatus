@@ -1,7 +1,7 @@
 use tokio;
 use tokio::time;
 
-use std::time::{Duration};
+use std::time::Duration;
 
 use caminatus::sensor::MCP9600;
 
@@ -11,7 +11,7 @@ async fn main() {
     let mut timer = time::interval(Duration::from_millis(interval as u64));
     let mut thermocouple = MCP9600::new(0x60).unwrap();
 
-    loop {    
+    loop {
         let value = thermocouple.read();
         println!("{:?} C", value);
 

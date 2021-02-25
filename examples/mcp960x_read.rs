@@ -7,7 +7,7 @@ fn main() {
         Ok(thermocouple) => {
             let value = thermocouple.unwrap().read();
             println!("{:?}C", value);
-        },
+        }
         Err(error) => eprintln!("something went wrong. is this running on a pi? {:?}", error),
     };
 }

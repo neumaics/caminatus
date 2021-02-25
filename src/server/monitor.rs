@@ -1,9 +1,9 @@
 /// Pings the manager every so often, which will remove disconnected clients
-use std::time::{Duration};
+use std::time::Duration;
 
 use anyhow::Result;
-use tokio::{join, time};
 use tokio::sync::broadcast::Sender;
+use tokio::{join, time};
 use tracing::{debug, trace};
 
 use crate::server::Command;

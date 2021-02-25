@@ -1,21 +1,21 @@
-use std::{collections::{HashMap, VecDeque}};
-use std::time::{Duration, SystemTime};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
+use rsfuzzy::*;
 use serde::Serialize;
 use serde_json;
-use rsfuzzy::*;
+use tokio::sync::{broadcast, mpsc};
 use tokio::task;
-use tokio::sync::{mpsc, broadcast};
 use tokio::time::sleep;
 use tracing::{error, info, instrument, trace, warn};
 use uuid::Uuid;
 
 use crate::config::KilnConfig;
 use crate::schedule::NormalizedSchedule;
-use crate::server::Command;
 use crate::sensor::{Heater, MCP9600};
+use crate::server::Command;
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
 pub enum KilnState {
@@ -33,13 +33,13 @@ pub struct RunState {
 #[derive(Debug)]
 pub enum KilnEvent {
     Complete,
-    Start(NormalizedSchedule, ),
+    Start(NormalizedSchedule),
     Started,
     Stop,
     Stopped,
     Unchanged,
     Failure(String),
-    Update
+    Update,
 }
 
 /// State of the kiln, sent to clients where
@@ -51,7 +51,7 @@ pub struct KilnUpdate {
     temperature: f64,
     state: KilnState,
     runtime: u32,
-    set_point: f64
+    set_point: f64,
 }
 
 ///
@@ -60,7 +60,7 @@ pub struct Kiln {
     pub id: Uuid,
     pub state: KilnState,
     thermocouple_address: u16, // 0x60
-    heater_pin: u8
+    heater_pin: u8,
 }
 
 ///
@@ -78,7 +78,7 @@ impl Kiln {
         let update_tx = manager_sender.clone();
         let queue = Arc::new(Mutex::new(VecDeque::<KilnEvent>::new()));
         let (tx, mut rx): (mpsc::Sender<KilnEvent>, mpsc::Receiver<KilnEvent>) = mpsc::channel(8);
-        
+
         let update_queue = queue.clone();
         let _updater = task::spawn(async move {
             let mut thermocouple = MCP9600::new(thermocouple_address).unwrap();
@@ -92,7 +92,10 @@ impl Kiln {
                 let temperature = &thermocouple.read().unwrap();
                 let mut set_point: f64 = 0.0;
                 let maybe_update = {
-                    update_queue.lock().expect("unable to lock update queue").pop_front()
+                    update_queue
+                        .lock()
+                        .expect("unable to lock update queue")
+                        .pop_front()
                 };
 
                 match maybe_update {
@@ -105,8 +108,8 @@ impl Kiln {
                             runtime = 0;
                             schedule = Some(s);
                         }
-                    },
-                    Some(KilnEvent::Stop) | Some(KilnEvent::Complete)=> {
+                    }
+                    Some(KilnEvent::Stop) | Some(KilnEvent::Complete) => {
                         if state == KilnState::Idle {
                             warn!("attempting to stop already idle kiln");
                         }
@@ -114,7 +117,7 @@ impl Kiln {
                         state = KilnState::Idle;
                         runtime = 0;
                         schedule = None;
-                    },
+                    }
                     _ => (),
                 };
 
@@ -136,18 +139,25 @@ impl Kiln {
 
                         if runtime > schedule.clone().expect("valid").total_duration() {
                             info!("schedule complete, stopping kiln");
-                            update_queue.lock().expect("unable to lock update queue").push_back(KilnEvent::Complete);
+                            update_queue
+                                .lock()
+                                .expect("unable to lock update queue")
+                                .push_back(KilnEvent::Complete);
                         }
                     }
                     KilnState::Idle => {
                         sleep(Duration::from_millis((interval) as u64)).await;
-                    },
+                    }
                 };
 
                 let update = KilnUpdate {
-                    runtime, state, set_point, temperature: *temperature,
+                    runtime,
+                    state,
+                    set_point,
+                    temperature: *temperature,
                 };
-                let update = serde_json::to_string(&update).expect("expected valid kiln update serialization");
+                let update = serde_json::to_string(&update)
+                    .expect("expected valid kiln update serialization");
 
                 trace!("{}", &update);
 
@@ -163,14 +173,22 @@ impl Kiln {
             while let Some(event) = rx.recv().await {
                 trace!("kiln got event");
                 match event {
-                    KilnEvent::Start(schedule) => handler_queue.lock().expect("unable to lock").push_back(KilnEvent::Start(schedule)),
-                    KilnEvent::Stop => handler_queue.lock().expect("unable to lock").push_back(KilnEvent::Stop),
-                    _ => ()
+                    KilnEvent::Start(schedule) => handler_queue
+                        .lock()
+                        .expect("unable to lock")
+                        .push_back(KilnEvent::Start(schedule)),
+                    KilnEvent::Stop => handler_queue
+                        .lock()
+                        .expect("unable to lock")
+                        .push_back(KilnEvent::Stop),
+                    _ => (),
                 }
             }
         });
 
-        let _ = manager_sender.send(Command::Register { channel: channel.to_string() });
+        let _ = manager_sender.send(Command::Register {
+            channel: channel.to_string(),
+        });
 
         Ok(tx)
     }
@@ -186,12 +204,12 @@ impl std::fmt::Display for KilnError {
     }
 }
 pub struct FuzzyController {
-    engine: rsfuzzy::Engine
+    engine: rsfuzzy::Engine,
 }
 
 impl FuzzyController {
-/// Ripped off from
-///   https://github.com/auseckas/rsfuzzy
+    /// Ripped off from
+    ///   https://github.com/auseckas/rsfuzzy
     pub fn init() -> FuzzyController {
         let mut f_engine = rsfuzzy::Engine::new();
 
@@ -236,21 +254,15 @@ impl FuzzyController {
         f_engine.add_rules(f_rules);
         f_engine.add_defuzz("centroid");
 
-        FuzzyController {
-            engine: f_engine
-        }
+        FuzzyController { engine: f_engine }
     }
 
     pub fn compute(self, var1: f32, var2: f32) -> f32 {
-        let inputs = fz_set_inputs![
-            ("var1", var1),
-            ("var2", var2)
-        ];
+        let inputs = fz_set_inputs![("var1", var1), ("var2", var2)];
 
         self.engine.calculate(inputs)
     }
 }
-
 
 #[derive(Debug)]
 struct PID {
@@ -286,7 +298,7 @@ impl PID {
         let mut sorted = vec![-1.0, self.i_term, 1.0];
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         self.i_term = sorted[1];
-    
+
         let d_error = (error - self.last_error) / delta as f64;
 
         let o: f64 = (self.k_p * error) + self.i_term + self.k_d * d_error;

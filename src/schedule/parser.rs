@@ -1,12 +1,12 @@
-use std::{fs, io, str::FromStr};
-use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
+use std::{fs, io, str::FromStr};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use pest::Parser;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
-use pest::Parser;
 use uuid::Uuid;
 
 use super::error::ScheduleError;
@@ -43,7 +43,6 @@ pub enum TimeUnit {
     Unknown = 0,
 }
 
-
 impl std::str::FromStr for TimeUnit {
     type Err = ScheduleError;
     fn from_str(input: &str) -> Result<TimeUnit, Self::Err> {
@@ -51,9 +50,11 @@ impl std::str::FromStr for TimeUnit {
             "hour" => Ok(TimeUnit::Hours),
             "minute" => Ok(TimeUnit::Minutes),
             "second" => Ok(TimeUnit::Seconds),
-            _ => Err(ScheduleError::InvalidStep { description: "unknown time unit provided".to_string() }),
+            _ => Err(ScheduleError::InvalidStep {
+                description: "unknown time unit provided".to_string(),
+            }),
         }
-    } 
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -71,7 +72,9 @@ impl std::str::FromStr for TemperatureScale {
             "C" => Ok(TemperatureScale::Celsius),
             "F" => Ok(TemperatureScale::Fahrenheit),
             "K" => Ok(TemperatureScale::Kelvin),
-            _ => Err(ScheduleError::InvalidStep { description: "unknown temperature scale provided".to_string() }),
+            _ => Err(ScheduleError::InvalidStep {
+                description: "unknown temperature scale provided".to_string(),
+            }),
         }
     }
 }
@@ -82,7 +85,7 @@ pub struct NormalizedSchedule {
     pub name: String,
     pub description: Option<String>,
     pub scale: TemperatureScale,
-    pub steps: Vec<NormalizedStep>,   
+    pub steps: Vec<NormalizedStep>,
 }
 
 /// Human understandable schedule, without normalizations for processing.
@@ -101,7 +104,12 @@ pub enum StepType {
     Unknown,
 }
 
-fn rate_to_seconds(start_temperature: &f64, end_temperature: &f64, temp: f32, time_unit: TimeUnit) -> u32 {
+fn rate_to_seconds(
+    start_temperature: &f64,
+    end_temperature: &f64,
+    temp: f32,
+    time_unit: TimeUnit,
+) -> u32 {
     let t_delta = end_temperature - start_temperature;
     let p = t_delta.abs() / temp as f64;
     let time = p * ((time_unit as u32) as f64);
@@ -109,7 +117,10 @@ fn rate_to_seconds(start_temperature: &f64, end_temperature: &f64, temp: f32, ti
     time.round() as u32
 }
 
-fn hold_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<NormalizedStep>) -> Result<NormalizedStep> {
+fn hold_from_parsed(
+    pairs: pest::iterators::Pairs<Rule>,
+    previous_step: Option<NormalizedStep>,
+) -> Result<NormalizedStep> {
     let mut time = 0.0;
     let mut unit = TimeUnit::Seconds;
 
@@ -122,12 +133,12 @@ fn hold_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<N
         match r.as_rule() {
             Rule::number => time = r.as_str().parse::<f32>().unwrap(),
             Rule::time_unit => unit = TimeUnit::from_str(r.as_str()).unwrap(),
-            _=> ()
+            _ => (),
         }
     }
 
     let time = time * ((unit as u32) as f32);
-    
+
     Ok(NormalizedStep {
         start_time: prev.end_time,
         end_time: prev.end_time + time.round() as u32,
@@ -145,7 +156,7 @@ fn temp_from_parsed(pairs: pest::iterators::Pairs<Rule>) -> Result<f64> {
             Rule::ambient => temp = 25.0,
             Rule::number => temp = r.as_str().parse::<f64>().unwrap(),
             Rule::scale => scale = TemperatureScale::from_str(r.as_str()).unwrap(),
-            _ => temp = -1.0
+            _ => temp = -1.0,
         }
     }
 
@@ -160,12 +171,15 @@ fn temp_from_parsed(pairs: pest::iterators::Pairs<Rule>) -> Result<f64> {
     }
 }
 
-fn duration_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<NormalizedStep>) -> Result<NormalizedStep> {
+fn duration_from_parsed(
+    pairs: pest::iterators::Pairs<Rule>,
+    previous_step: Option<NormalizedStep>,
+) -> Result<NormalizedStep> {
     let mut start_temp = 0.0;
     let mut end_temp = 0.0;
     let mut time = 0.0;
     let mut time_unit = TimeUnit::Seconds;
-    
+
     let prev: NormalizedStep = match previous_step {
         Some(s) => s,
         None => Default::default(),
@@ -177,7 +191,7 @@ fn duration_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Opti
             Rule::to => end_temp = temp_from_parsed(r.into_inner()).unwrap(),
             Rule::length => time = r.into_inner().as_str().parse::<f32>().unwrap(),
             Rule::time_unit => time_unit = TimeUnit::from_str(r.as_str()).unwrap(),
-            _ => ()
+            _ => (),
         }
     }
 
@@ -191,24 +205,27 @@ fn duration_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Opti
     })
 }
 
-fn rate_from_parsed(pairs: pest::iterators::Pairs<Rule>, previous_step: Option<NormalizedStep>) -> Result<NormalizedStep> {
+fn rate_from_parsed(
+    pairs: pest::iterators::Pairs<Rule>,
+    previous_step: Option<NormalizedStep>,
+) -> Result<NormalizedStep> {
     let mut start_temp = 0.0;
     let mut end_temp = 0.0;
     let mut increment = 0.0;
     let mut time_unit = TimeUnit::Seconds;
-    
+
     let prev: NormalizedStep = match previous_step {
         Some(s) => s,
         None => Default::default(),
     };
-    
+
     for r in pairs {
         match r.as_rule() {
             Rule::from => start_temp = temp_from_parsed(r.into_inner()).unwrap(),
             Rule::to => end_temp = temp_from_parsed(r.into_inner()).unwrap(),
             Rule::increment => increment = r.into_inner().as_str().parse::<f32>().unwrap(),
             Rule::time_unit => time_unit = TimeUnit::from_str(r.as_str()).unwrap(),
-            _ => ()
+            _ => (),
         }
     }
 
@@ -250,11 +267,11 @@ impl Schedule {
 
     pub fn from_json(json_string: String) -> Result<Schedule, ScheduleError> {
         let schedule: Schedule = serde_json::from_str(json_string.as_str())?;
-        
+
         match Schedule::validate(&schedule) {
             Ok(()) => Ok(schedule),
-            Err(error) => Err(error)
-        }        
+            Err(error) => Err(error),
+        }
     }
 
     pub fn from_yaml(yaml_string: String) -> Result<Schedule, ScheduleError> {
@@ -262,7 +279,7 @@ impl Schedule {
 
         match Schedule::validate(&schedule) {
             Ok(()) => Ok(schedule),
-            Err(error) => Err(error)
+            Err(error) => Err(error),
         }
     }
 
@@ -288,7 +305,7 @@ impl Schedule {
             })
         } else {
             Err(ScheduleError::InvalidStep {
-                description: step_validation
+                description: step_validation,
             })
         }
     }
@@ -314,17 +331,29 @@ impl Schedule {
         })
     }
 
-    pub fn parse(input: &String) -> Result<NormalizedStep, > {
+    pub fn parse(input: &String) -> Result<NormalizedStep> {
         parse_step(input.as_str(), None)
     }
 
     pub fn all(schedule_directory: &String) -> Vec<String> {
-        let mut entries = fs::read_dir(schedule_directory).unwrap()
+        let mut entries = fs::read_dir(schedule_directory)
+            .unwrap()
             .map(|res| res.map(|e| e.path()))
-            .collect::<Result<Vec<_>, io::Error>>().unwrap();
-    
+            .collect::<Result<Vec<_>, io::Error>>()
+            .unwrap();
+
         entries.sort();
-        let names: Vec<String> = entries.iter().map(|p| Path::new(p).file_stem().unwrap().to_str().unwrap().to_string()).collect();
+        let names: Vec<String> = entries
+            .iter()
+            .map(|p| {
+                Path::new(p)
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
         names
     }
 
@@ -340,18 +369,30 @@ impl Schedule {
     /// Create a new schedule with a given name.
     pub fn new(schedule: Schedule, schedule_directory: &String) -> Result<String, ScheduleError> {
         Schedule::validate(&schedule)?;
-        
+
         let id = Uuid::new_v4();
-        let mut file = File::create(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
+        let mut file = File::create(format!(
+            "{}/{}.yaml",
+            schedule_directory,
+            id.to_string().as_str()
+        ))?;
         let schedule_string: String = serde_yaml::to_string(&schedule)?;
         file.write_all(schedule_string.as_bytes())?;
-        
+
         Ok(id.to_string())
     }
 
-    pub fn update(id: String, schedule: Schedule, schedule_directory: &String) -> Result<String, ScheduleError> {
+    pub fn update(
+        id: String,
+        schedule: Schedule,
+        schedule_directory: &String,
+    ) -> Result<String, ScheduleError> {
         Schedule::validate(&schedule)?;
-        let mut file = File::create(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
+        let mut file = File::create(format!(
+            "{}/{}.yaml",
+            schedule_directory,
+            id.to_string().as_str()
+        ))?;
         let schedule_string: String = serde_yaml::to_string(&schedule)?;
 
         file.write_all(schedule_string.as_bytes())?;
@@ -360,7 +401,11 @@ impl Schedule {
     }
 
     pub fn delete(id: String, schedule_directory: &String) -> Result<String, ScheduleError> {
-        fs::remove_file(format!("{}/{}.yaml", schedule_directory, id.to_string().as_str()))?;
+        fs::remove_file(format!(
+            "{}/{}.yaml",
+            schedule_directory,
+            id.to_string().as_str()
+        ))?;
         Ok(id)
     }
 
@@ -376,16 +421,15 @@ impl NormalizedSchedule {
             0.0
         } else {
             let current_step = self.step_at_time(time);
-            
+
             match current_step {
                 Some(step) => {
-                    let slope: f64 = 
-                        (step.end_temperature - step.start_temperature) as f64 /
-                        (step.end_time - step.start_time)  as f64;
+                    let slope: f64 = (step.end_temperature - step.start_temperature) as f64
+                        / (step.end_time - step.start_time) as f64;
 
                     step.start_temperature as f64 + slope * (time - step.start_time) as f64
-                },
-                None => 0.0
+                }
+                None => 0.0,
             }
         }
     }
@@ -393,7 +437,7 @@ impl NormalizedSchedule {
     pub fn total_duration(&self) -> u32 {
         match self.steps.last() {
             Some(last) => last.end_time,
-            None => 0
+            None => 0,
         }
     }
 
@@ -417,30 +461,45 @@ mod parser_tests {
     fn should_parse_holds() -> Result<()> {
         let input = "hold for 30 minutes";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_time: 0,
-            end_time: 30 * 60,
-            start_temperature: 0.0,
-            end_temperature: 0.0,
-        }, "input: [{}] failed", input);
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_time: 0,
+                end_time: 30 * 60,
+                start_temperature: 0.0,
+                end_temperature: 0.0,
+            },
+            "input: [{}] failed",
+            input
+        );
 
         let input = "Hold for 1 hour.";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_time: 0,
-            end_time: 60 * 60,
-            start_temperature: 0.0,
-            end_temperature: 0.0,
-        }, "input: [{}] failed", input);
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_time: 0,
+                end_time: 60 * 60,
+                start_temperature: 0.0,
+                end_temperature: 0.0,
+            },
+            "input: [{}] failed",
+            input
+        );
 
         let input = "hold for 10 seconds";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_time: 0,
-            end_time: 10,
-            start_temperature: 0.0,
-            end_temperature: 0.0,
-        }, "input: [{}] failed", input);
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_time: 0,
+                end_time: 10,
+                start_temperature: 0.0,
+                end_temperature: 0.0,
+            },
+            "input: [{}] failed",
+            input
+        );
 
         Ok(())
     }
@@ -449,22 +508,27 @@ mod parser_tests {
     fn should_parse_durations() -> Result<()> {
         let input = "ambient to 200 over 2 hours";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_temperature: 25.0,
-            end_temperature: 200.0,
-            start_time: 0,
-            end_time: 7200
-        });
-
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_temperature: 25.0,
+                end_temperature: 200.0,
+                start_time: 0,
+                end_time: 7200
+            }
+        );
 
         let input = "100 to 300 over 30 minutes";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_temperature: 100.0,
-            end_temperature: 300.0,
-            start_time: 0,
-            end_time: 30 * 60
-        });
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_temperature: 100.0,
+                end_temperature: 300.0,
+                start_time: 0,
+                end_time: 30 * 60
+            }
+        );
 
         let input = "200 to 700 over 8 hours";
         let output = parse_step(input, None)?;
@@ -478,13 +542,18 @@ mod parser_tests {
     fn should_parse_rates() -> Result<()> {
         let input = "100 to 120 by 20 per hour";
         let output = parse_step(input, None)?;
-        
-        assert_eq!(output, NormalizedStep {
-            start_temperature: 100.0,
-            end_temperature: 120.0,
-            start_time: 0,
-            end_time: 60 * 60,
-        }, "input: [{}] failed", input);
+
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_temperature: 100.0,
+                end_temperature: 120.0,
+                start_time: 0,
+                end_time: 60 * 60,
+            },
+            "input: [{}] failed",
+            input
+        );
 
         Ok(())
     }
@@ -494,22 +563,27 @@ mod parser_tests {
         // let g = "(#|ambient) to (#|ambient) over # (hour|hours|minute|minutes|seconds)";
         let input = "ambient to 200 over 2 hours";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_temperature: 25.0,
-            end_temperature: 200.0,
-            start_time: 0,
-            end_time: 7200
-        });
-
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_temperature: 25.0,
+                end_temperature: 200.0,
+                start_time: 0,
+                end_time: 7200
+            }
+        );
 
         let input = "100 to 300 by 100 degrees per hour";
         let output = parse_step(input, None)?;
-        assert_eq!(output, NormalizedStep {
-            start_temperature: 100.0,
-            end_temperature: 300.0,
-            start_time: 0,
-            end_time: 7200
-        });
+        assert_eq!(
+            output,
+            NormalizedStep {
+                start_temperature: 100.0,
+                end_temperature: 300.0,
+                start_time: 0,
+                end_time: 7200
+            }
+        );
 
         let input = "200 to 700 over 8 hours";
         let output = parse_step(input, None)?;
@@ -530,8 +604,8 @@ mod parser_tests {
         let output = parse_step(input, None)?;
         assert_eq!(output.start_temperature, 25.0);
         assert_eq!(output.end_temperature, 100.0);
-    
-      Ok(())
+
+        Ok(())
     }
 
     #[test]
@@ -542,8 +616,8 @@ mod parser_tests {
             scale: TemperatureScale::Celsius,
             steps: vec![
                 "0 to 100 over 1 hour".to_string(),
-                "100 to 200 over 1 hour".to_string()
-            ]
+                "100 to 200 over 1 hour".to_string(),
+            ],
         };
         let normalized = schedule.normalize()?;
 

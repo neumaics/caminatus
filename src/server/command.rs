@@ -6,10 +6,7 @@ use crate::schedule::NormalizedSchedule;
 #[derive(Debug)]
 pub enum Message {
     UserId(Uuid),
-    Update {
-        channel: String,
-        data: String
-    },
+    Update { channel: String, data: String },
 }
 
 /// Internal Api
@@ -48,8 +45,8 @@ pub enum Command {
     Ping,
 
     StartSchedule {
-        schedule: NormalizedSchedule
+        schedule: NormalizedSchedule,
     },
 
-    StopSchedule
+    StopSchedule,
 }

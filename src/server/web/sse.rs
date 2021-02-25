@@ -2,14 +2,19 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures::{Stream, StreamExt};
-use tokio::sync::mpsc;
 use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
 use warp::sse::Event;
-use warp::{filters::BoxedFilter, Filter, Reply, http, http::{Response, StatusCode}};
+use warp::{
+    filters::BoxedFilter,
+    http,
+    http::{Response, StatusCode},
+    Filter, Reply,
+};
 
-use crate::server::{Message, Command};
+use crate::server::{Command, Message};
 
 pub fn routes(manager_sender: &Sender<Command>) -> BoxedFilter<(impl Reply,)> {
     let manager1 = manager_sender.clone();
@@ -27,9 +32,7 @@ pub fn routes(manager_sender: &Sender<Command>) -> BoxedFilter<(impl Reply,)> {
         .and(warp::path::param())
         .map(subscribe);
 
-    connect
-        .or(sub)
-        .boxed()
+    connect.or(sub).boxed()
 }
 
 fn connect(manager: Sender<Command>) -> impl Reply {
@@ -37,15 +40,17 @@ fn connect(manager: Sender<Command>) -> impl Reply {
         .interval(Duration::from_secs(5))
         .text("bump".to_string())
         .stream(on_connect(manager));
-    
+
     warp::sse::reply(stream)
 }
 
-fn on_connect(manager: Sender<Command>) -> impl Stream<Item = Result<Event, warp::Error>> + Send + 'static {
+fn on_connect(
+    manager: Sender<Command>,
+) -> impl Stream<Item = Result<Event, warp::Error>> + Send + 'static {
     let id = Uuid::new_v4();
     let (tx, rx) = mpsc::unbounded_channel();
     let rx = UnboundedReceiverStream::new(rx);
-    
+
     tx.send(Message::UserId(id)).unwrap();
 
     let _ = manager.send(Command::ClientRegister { id, sender: tx });
@@ -56,8 +61,15 @@ fn on_connect(manager: Sender<Command>) -> impl Stream<Item = Result<Event, warp
     })
 }
 
-fn subscribe(manager: Sender<Command>, id: String, channel: String) -> Result<Response<String>, http::Error> {
-    let _ = manager.send(Command::Subscribe { channel: channel, id: Uuid::parse_str(&id).unwrap() });
+fn subscribe(
+    manager: Sender<Command>,
+    id: String,
+    channel: String,
+) -> Result<Response<String>, http::Error> {
+    let _ = manager.send(Command::Subscribe {
+        channel: channel,
+        id: Uuid::parse_str(&id).unwrap(),
+    });
     Response::builder()
         .status(warp::http::StatusCode::OK)
         .body("{}".to_string())

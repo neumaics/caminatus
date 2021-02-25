@@ -1,7 +1,7 @@
 use std::io::Result;
 
-use tokio::sync::broadcast;
 use crate::server::Command;
+use tokio::sync::broadcast;
 
 pub struct StreamWriter {
     pub sender: broadcast::Sender<Command>,
@@ -9,7 +9,9 @@ pub struct StreamWriter {
 
 impl StreamWriter {
     pub fn init(self) -> Self {
-        let _ = self.sender.send(Command::Register { channel: "log".to_string() });
+        let _ = self.sender.send(Command::Register {
+            channel: "log".to_string(),
+        });
         self
     }
 }

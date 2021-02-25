@@ -2,16 +2,16 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
+use tokio::join;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
-use tokio::join;
 use tracing::{debug, error, instrument, trace};
 use uuid::Uuid;
 
 use crate::config::Config;
-use crate::server::{Message, Monitor, Command, web};
 use crate::device::{Kiln, KilnEvent};
 use crate::server::log;
+use crate::server::{web, Command, Message, Monitor};
 
 type SubscriptionList = Arc<Mutex<HashMap<String, Vec<(Uuid, UnboundedSender<Message>)>>>>;
 type ServiceList = Arc<Mutex<HashMap<String, Sender<Command>>>>;
@@ -23,19 +23,31 @@ pub struct Manager {
 }
 
 impl Manager {
-    
     #[instrument]
     pub async fn start(conf: Config) -> Result<Manager> {
         debug!("starting manager");
-        let (b_tx, b_rx): (broadcast::Sender<Command>, broadcast::Receiver<Command>) = broadcast::channel(32);
+        let (b_tx, b_rx): (broadcast::Sender<Command>, broadcast::Receiver<Command>) =
+            broadcast::channel(32);
 
         let l_tx = b_tx.clone();
         tracing_subscriber::fmt()
-            .with_writer(move || { (log::StreamWriter { sender: l_tx.clone() }).init() })
+            .with_writer(move || {
+                (log::StreamWriter {
+                    sender: l_tx.clone(),
+                })
+                .init()
+            })
             .init();
 
         let web_service = web::start(conf.clone(), b_tx.clone());
-        let kiln = Kiln::start(conf.thermocouple_address, conf.gpio.heater, conf.poll_interval, b_tx.clone(), conf.kiln).await?;
+        let kiln = Kiln::start(
+            conf.thermocouple_address,
+            conf.gpio.heater,
+            conf.poll_interval,
+            b_tx.clone(),
+            conf.kiln,
+        )
+        .await?;
         let subscriptions = SubscriptionList::default();
         let services = ServiceList::default();
         let clients = ClientList::default();
@@ -48,9 +60,7 @@ impl Manager {
 
         let _ = join!(proc, web_service);
 
-        Ok(Manager {
-            sender: b_tx,
-        })
+        Ok(Manager { sender: b_tx })
     }
 
     #[instrument]
@@ -70,35 +80,40 @@ impl Manager {
 
                     if let Some(s) = sender {
                         let mut locked = subscriptions.lock().unwrap();
-                        
+
                         if locked.contains_key(&channel) {
                             let subs = locked.get_mut(&channel).unwrap();
                             subs.push((id, s.clone()));
-                            let _ = s.send(Message::Update { channel: "system".to_string(), data: "success".to_string() });
+                            let _ = s.send(Message::Update {
+                                channel: "system".to_string(),
+                                data: "success".to_string(),
+                            });
                         } else {
                             trace!("attempting to subscribe to a channel that doesn't exist");
-                        }                    
+                        }
                     }
-                },
+                }
                 Command::Unsubscribe { channel, id } => {
                     trace!("unsubscribing to channel {}", channel);
                     let mut locked = subscriptions.lock().unwrap();
 
                     if locked.contains_key(&channel) {
                         let subs = locked.get_mut(&channel).unwrap();
-                        
+
                         let index = subs.iter().position(|s| s.0 == id);
 
                         if index.is_some() {
                             subs.remove(index.unwrap());
                         } else {
-                            error!("attempting to unregister from channel not subscribed {}", id);
+                            error!(
+                                "attempting to unregister from channel not subscribed {}",
+                                id
+                            );
                         }
-                        
                     } else {
                         error!("attempting to unsubscribe to a channel that doesn't exist");
                     }
-                },
+                }
                 Command::Register { channel } => {
                     debug!("registering service {}", channel);
                     let mut locked = subscriptions.lock().unwrap();
@@ -109,7 +124,7 @@ impl Manager {
                         debug!("channel [{}] doesn't exist, adding to list", channel);
                         locked.insert(channel.to_string(), Vec::new());
                     }
-                },
+                }
                 Command::ClientRegister { id, sender } => {
                     tracing::info!("registering client");
                     let mut locked = clients.lock().unwrap();
@@ -119,30 +134,32 @@ impl Manager {
                     } else {
                         locked.insert(id, sender);
                     }
-                },
+                }
                 Command::Update { channel, data } => {
                     let mut locked = subscriptions.lock().unwrap();
 
                     if locked.contains_key(&channel) {
                         locked.get_mut(&channel).unwrap().retain(|(_id, sender)| {
-                            sender.send(Message::Update {
-                                channel: channel.clone(),
-                                data: data.clone(),
-                            }).is_ok()
+                            sender
+                                .send(Message::Update {
+                                    channel: channel.clone(),
+                                    data: data.clone(),
+                                })
+                                .is_ok()
                         });
                     } else {
                         // error!("attempting to update a channel that doesn't exist");
                     }
-                },
+                }
                 Command::Ping => Manager::handle_ping(&clients),
                 Command::Unknown { input } => Manager::handle_unknown(Some(input)),
                 Command::StartSchedule { schedule } => {
                     let _ = kiln.send(KilnEvent::Start(schedule)).await;
-                },
+                }
                 Command::StopSchedule => {
                     let _ = kiln.send(KilnEvent::Stop).await;
-                },
-                _ => Manager::handle_unknown(None)
+                }
+                _ => Manager::handle_unknown(None),
             }
         }
 
@@ -157,10 +174,12 @@ impl Manager {
             .lock()
             .expect("unable to get lock on client list")
             .retain(|_id, sender| {
-                sender.send(Message::Update {
-                    channel: name.to_string(),
-                    data: name.to_string(),
-                }).is_ok()
+                sender
+                    .send(Message::Update {
+                        channel: name.to_string(),
+                        data: name.to_string(),
+                    })
+                    .is_ok()
             })
     }
 
@@ -170,6 +189,6 @@ impl Manager {
         match input {
             Some(s) => error!("unknown command received {}. ignoring", s),
             None => error!("ignoring command"),
-        }        
+        }
     }
 }

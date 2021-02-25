@@ -2,8 +2,8 @@ use anyhow::Result;
 use tokio::sync::broadcast::Sender;
 use warp::Filter;
 
-use crate::server::Command;
 use crate::config::Config;
+use crate::server::Command;
 
 pub mod error;
 
@@ -16,18 +16,14 @@ pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<()> 
     let m3 = manager_sender.clone();
 
     let _ = tokio::spawn(async move {
-        let public = warp::path("public")
-            .and(warp::fs::dir("public"));
+        let public = warp::path("public").and(warp::fs::dir("public"));
 
-        let app = warp::path("app")
-            .and(warp::filters::fs::file("public/index.html"));
+        let app = warp::path("app").and(warp::filters::fs::file("public/index.html"));
 
-        let index = warp::path::end()
-            .and(warp::filters::fs::file("public/index.html"));
+        let index = warp::path::end().and(warp::filters::fs::file("public/index.html"));
 
-        let js = warp::path("bundle.js")
-            .and(warp::filters::fs::file("public/bundle.js"));
-        
+        let js = warp::path("bundle.js").and(warp::filters::fs::file("public/bundle.js"));
+
         let routes = index
             .or(js)
             .or(public)
@@ -43,4 +39,4 @@ pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<()> 
     });
 
     Ok(())
-}  
+}

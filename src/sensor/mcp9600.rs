@@ -1,11 +1,11 @@
-/// 
+///
 /// Thermocouple EMF to Temperature Converter
 /// Datasheet:
 ///   http://ww1.microchip.com/downloads/en/DeviceDoc/MCP960X-L0X-RL0X-Data-Sheet-20005426F.pdf
-/// 
+///
 /// Sample breakout board:
 ///   https://www.adafruit.com/product/4101
-/// 
+///
 use rppal::i2c::I2c;
 use tracing::error;
 
@@ -47,20 +47,17 @@ mod real {
     use super::*;
     pub struct MCP9600 {
         address: u16,
-        i2c: I2c
+        i2c: I2c,
     }
 
     impl MCP9600 {
         pub fn new(address: u16) -> Result<Self, ThermocoupleError> {
             let mut i2c = I2c::new()?;
-            
+
             match i2c.set_slave_address(address) {
-                Ok(_) => Ok(MCP9600 {
-                    address,
-                    i2c: i2c,
-                }),
-                Err(error) => Err(ThermocoupleError::I2CError { source: error })
-            }   
+                Ok(_) => Ok(MCP9600 { address, i2c: i2c }),
+                Err(error) => Err(ThermocoupleError::I2CError { source: error }),
+            }
         }
 
         pub fn read_internal(&mut self) -> Result<f64, ThermocoupleError> {
@@ -71,12 +68,16 @@ mod real {
             self.read_temperature(HOT_JUNCTION_TEMPERATURE, FIRST_BIT_SIGN)
         }
 
-        fn read_temperature(&mut self, junction: u8, sign_bits: u8) -> Result<f64, ThermocoupleError> {
+        fn read_temperature(
+            &mut self,
+            junction: u8,
+            sign_bits: u8,
+        ) -> Result<f64, ThermocoupleError> {
             let mut register = [0u8; 2];
 
             let write_command: u8 = (self.address << 1) as u8;
-            let read_command:u8 = write_command | 0x01;
-            
+            let read_command: u8 = write_command | 0x01;
+
             self.i2c.block_write(write_command, &[junction])?;
             self.i2c.write(&[read_command])?;
 
@@ -87,7 +88,7 @@ mod real {
                 Err(error) => {
                     error!("error: {}", error);
                     Err(ThermocoupleError::I2CError { source: error })
-                },
+                }
             }
         }
 
@@ -119,7 +120,11 @@ pub mod simulated {
             Ok(0.0)
         }
 
-        fn read_temperature(&mut self, junction: u8, sign_bits: u8) -> Result<f64, ThermocoupleError> {
+        fn read_temperature(
+            &mut self,
+            junction: u8,
+            sign_bits: u8,
+        ) -> Result<f64, ThermocoupleError> {
             Ok(0.0)
         }
 
@@ -130,22 +135,25 @@ pub mod simulated {
     }
 }
 
-
 /// Converts the two byte representation of the temperature to its floating point representation.
 ///   See in the datasheet: TABLE 5-1:SUMMARY OF REGISTERS AND BIT ASSIGNMENTS
-/// 
+///
 /// Hot junction and junctions temperature delta, alert limits registers:
 ///   |       | bit 7 | bit 6 | bit 5 | bit 4 | bit 3 | bit 2 |  bit 1 |   bit 0 |
 ///   |-------|-------|-------|-------|-------|-------|-------|--------|---------|
 ///   | upper |  SIGN | 1024C |  512C |  256C |  128C |   64C |    32C |     16C |
 ///   | lower |    8C |    4C |    2C |    1C |  0.5C | 0.25C | 0.125C | 0.0625C |
-/// 
+///
 /// Cold junction temperature
 ///   | upper |  SIGN |  SIGN |  SIGN |  SIGN |  128C |   64C |    32C |     16C |
 ///   | lower |    8C |    4C |    2C |    1C |  0.5C | 0.25C | 0.125C | 0.0625C |
 fn to_float(register: [u8; 2], sign_mask: u8) -> f64 {
     let [upper, lower] = register;
-    let sign: f64 = if (upper.clone() & 0x80) == 0 { 1.0 } else { -1.0 };
+    let sign: f64 = if (upper.clone() & 0x80) == 0 {
+        1.0
+    } else {
+        -1.0
+    };
 
     let upper = upper & sign_mask;
     let upper: u16 = (upper as u16) << 4;
@@ -153,7 +161,7 @@ fn to_float(register: [u8; 2], sign_mask: u8) -> f64 {
 
     let lower_div: f64 = (lower as f64) / 256.0;
     let result = (upper as f64) + lower_div;
-    
+
     sign * result
 }
 
@@ -174,7 +182,7 @@ mod to_float_tests {
 
         assert_eq!(output, expected_output);
     }
-    
+
     #[test]
     fn works() {
         // Sanity check
@@ -215,9 +223,9 @@ mod to_float_tests {
         test_hot_to_float(0b0010_0000, 0b0000_0000, 512.0);
         test_hot_to_float(0b0100_0000, 0b0000_0000, 1024.0);
         test_hot_to_float(0b1100_0000, 0b0000_0000, -1024.0);
-        
+
         // -0, actually. not sure if this is a valid output
-        test_hot_to_float(0b1000_0000, 0b0000_0000, 0.0);        
+        test_hot_to_float(0b1000_0000, 0b0000_0000, 0.0);
     }
 
     #[test]
@@ -241,7 +249,7 @@ mod to_float_tests {
         test_cold_to_float(0b0001_0000, 0b0000_0000, 0.0);
         test_cold_to_float(0b0010_0000, 0b0000_0000, 0.0);
         test_cold_to_float(0b0100_0000, 0b0000_0000, 0.0);
-        test_cold_to_float(0b1000_0000, 0b0000_0000, 0.0);   
+        test_cold_to_float(0b1000_0000, 0b0000_0000, 0.0);
     }
 
     // TODO: Test every possible value...?

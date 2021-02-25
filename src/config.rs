@@ -34,7 +34,7 @@ struct WebConfigSection {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct GpioConfig {
-    pub heater: u8
+    pub heater: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -105,7 +105,7 @@ impl TryFrom<ConfigFile> for Config {
                 proportional: value.kiln.proportional,
                 integral: value.kiln.integral,
                 derivative: value.kiln.derivative,
-            }
+            },
         };
 
         Ok(conf)

@@ -2,16 +2,12 @@ use std::error::Error;
 
 #[derive(Debug)]
 pub enum HeaterError {
-    GpioError {
-        source: rppal::gpio::Error
-    }
+    GpioError { source: rppal::gpio::Error },
 }
 
 impl From<rppal::gpio::Error> for HeaterError {
     fn from(error: rppal::gpio::Error) -> Self {
-        HeaterError::GpioError {
-            source: error
-        }
+        HeaterError::GpioError { source: error }
     }
 }
 
@@ -22,17 +18,17 @@ impl std::fmt::Display for HeaterError {
         match self {
             HeaterError::GpioError { source } => write!(f, "Gpio Error {}", source),
         }
-    }   
+    }
 }
 
 #[cfg(target = "armv7-unknown-linux-gnueabihf")]
 pub mod real {
     use super::*;
-    use rppal::gpio::{OutputPin, Gpio};
+    use rppal::gpio::{Gpio, OutputPin};
 
     /// Interface into a zero-crossing solid state relay.
     pub struct Heater {
-        pin: OutputPin
+        pin: OutputPin,
     }
 
     impl Heater {
@@ -41,9 +37,7 @@ pub mod real {
         pub fn new(gpio_pin: u8) -> Result<Heater, HeaterError> {
             let pin = Gpio::new()?.get(gpio_pin)?.into_output();
 
-            Ok(Heater {
-                pin: pin
-            })
+            Ok(Heater { pin: pin })
         }
 
         pub fn toggle(&mut self) {
@@ -65,16 +59,14 @@ pub mod simulated {
     use super::*;
 
     pub struct Heater {
-        pin: u8
+        pin: u8,
     }
 
     impl Heater {
         /// The gpio pin to send the on/off signal. Note, this is the gpio index and
         ///   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
         pub fn new(gpio_pin: u8) -> Result<Heater, HeaterError> {
-            Ok(Heater {
-                pin: gpio_pin
-            })
+            Ok(Heater { pin: gpio_pin })
         }
 
         pub fn toggle(&mut self) {

@@ -1,5 +1,10 @@
 use serde_json;
-use warp::{filters::BoxedFilter, Filter, Reply, http, http::{Response, StatusCode}};
+use warp::{
+    filters::BoxedFilter,
+    http,
+    http::{Response, StatusCode},
+    Filter, Reply,
+};
 
 use crate::schedule::Schedule;
 
@@ -11,7 +16,7 @@ pub fn routes() -> BoxedFilter<(impl Reply,)> {
         .map(parse);
 
     step.boxed()
-}  
+}
 
 fn parse(to_parse: String) -> Result<Response<String>, http::Error> {
     let input = percent_encoding::percent_decode(to_parse.as_bytes()).decode_utf8();
@@ -22,15 +27,19 @@ fn parse(to_parse: String) -> Result<Response<String>, http::Error> {
 
             let (code, body) = match parsed {
                 Ok(step) => (StatusCode::OK, serde_json::to_string(&step).unwrap()),
-                Err(e) => (StatusCode::NOT_ACCEPTABLE, format!(r#"{{ "message": "{:?}" }}"#, e)),
+                Err(e) => (
+                    StatusCode::NOT_ACCEPTABLE,
+                    format!(r#"{{ "message": "{:?}" }}"#, e),
+                ),
             };
 
-            Response::builder()
-                .status(code)
-                .body(body)
-        },
+            Response::builder().status(code).body(body)
+        }
         Err(e) => {
-            let body = format!(r#"{{ "message": "error parsing request", "error": "{:?}" }}"#, e);
+            let body = format!(
+                r#"{{ "message": "error parsing request", "error": "{:?}" }}"#,
+                e
+            );
             Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(body)

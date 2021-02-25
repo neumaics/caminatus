@@ -1,9 +1,14 @@
 use tokio::sync::broadcast::Sender;
 
-use warp::{filters::BoxedFilter, Filter, Reply, http, http::{Response, StatusCode}};
+use warp::{
+    filters::BoxedFilter,
+    http,
+    http::{Response, StatusCode},
+    Filter, Reply,
+};
 
-use crate::server::Command;
 use crate::schedule::{Schedule, ScheduleError};
+use crate::server::Command;
 
 use super::error::ErrorResponse;
 
@@ -14,7 +19,7 @@ pub fn routes(directory: Option<String>, manager: Sender<Command>) -> BoxedFilte
     let m3 = manager.clone();
     let manager2 = warp::any().map(move || m2.clone());
     let manager3 = warp::any().map(move || m3.clone());
-    
+
     let start = warp::get()
         .and(dir.clone())
         .and(manager2)
@@ -34,7 +39,11 @@ pub fn routes(directory: Option<String>, manager: Sender<Command>) -> BoxedFilte
     start.or(stop).boxed()
 }
 
-fn start(directory: String, manager: Sender<Command>, name: String) -> Result<Response<String>, http::Error> {
+fn start(
+    directory: String,
+    manager: Sender<Command>,
+    name: String,
+) -> Result<Response<String>, http::Error> {
     match Schedule::by_name(&name, &directory) {
         Ok(s) => {
             let normalized = s.normalize();
@@ -50,32 +59,37 @@ fn start(directory: String, manager: Sender<Command>, name: String) -> Result<Re
                         .status(StatusCode::OK)
                         .body(r#"{ "message": "started" }"#.to_string())
                 }
-                Err(error) => {
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(ErrorResponse {
+                Err(error) => Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(
+                        ErrorResponse {
                             message: format!("error starting schedule with name: [{}]", &name),
                             error: format!("{:?}", error),
-                        }.to_string())
-                }
+                        }
+                        .to_string(),
+                    ),
             }
-        },
+        }
         Err(error) => match error {
             ScheduleError::IOError { description } => {
-                Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(ErrorResponse {
+                Response::builder().status(StatusCode::NOT_FOUND).body(
+                    ErrorResponse {
                         message: format!("unable to find schedule with name [{}]", &name),
                         error: description,
-                    }.to_string())
-            },
+                    }
+                    .to_string(),
+                )
+            }
             _ => Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse {
-                    message: format!("unknown error starting schedule with name [{}]", &name),
-                    error: format!("{:?}", error),
-                }.to_string()),
-        }
+                .body(
+                    ErrorResponse {
+                        message: format!("unknown error starting schedule with name [{}]", &name),
+                        error: format!("{:?}", error),
+                    }
+                    .to_string(),
+                ),
+        },
     }
 }
 
@@ -84,7 +98,7 @@ fn stop(manager: Sender<Command>) -> Result<Response<String>, http::Error> {
         .clone()
         .send(Command::StopSchedule)
         .expect("unable to send command to manager");
-    
+
     Response::builder()
         .status(StatusCode::OK)
         .body(r#"{ "message": "stopped" }"#.to_string())
