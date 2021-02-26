@@ -1,4 +1,5 @@
 use std::error::Error;
+use tracing::debug;
 
 #[derive(Debug)]
 pub enum HeaterError {
@@ -22,6 +23,7 @@ impl std::fmt::Display for HeaterError {
 }
 
 #[cfg(target = "armv7-unknown-linux-gnueabihf")]
+#[cfg(target = "arm-unknown-linux-gnueabihf")]
 pub mod real {
     use super::*;
     use rppal::gpio::{Gpio, OutputPin};
@@ -55,6 +57,7 @@ pub mod real {
 }
 
 #[cfg(not(target = "armv7-unknown-linux-gnueabihf"))]
+#[cfg(not(target = "arm-unknown-linux-gnueabihf"))]
 pub mod simulated {
     use super::*;
 
@@ -63,22 +66,20 @@ pub mod simulated {
     }
 
     impl Heater {
-        /// The gpio pin to send the on/off signal. Note, this is the gpio index and
-        ///   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
         pub fn new(gpio_pin: u8) -> Result<Heater, HeaterError> {
             Ok(Heater { pin: gpio_pin })
         }
 
         pub fn toggle(&mut self) {
-            // &self.pin.toggle();
+            debug!("toggling pin [{}]", self.pin);
         }
 
         pub fn on(&mut self) {
-            // &self.pin.set_high();
+            debug!("turning on pin [{}]", self.pin);
         }
 
         pub fn off(&mut self) {
-            // &self.pin.set_low();
+            debug!("turning off pin [{}]", self.pin);
         }
     }
 }

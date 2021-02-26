@@ -1,8 +1,8 @@
 log_level: "debug"
 web:
-    port: 8080
-    host_ip: "127.0.0.1"
-    keep_alive_interval: 10000
+  port: 8080
+  host_ip: "127.0.0.1"
+  keep_alive_interval: 10000
 
 # In seconds
 poll_interval: 10000
@@ -12,9 +12,11 @@ thermocouple_address: 0x60
 
 
 gpio:
-    heater: 12
+  # The gpio pin to send the on/off signal. Note, this is the gpio index and
+  #   not the physical gpio pin. That is, GPIO #4 -> Physical pin #7.
+  heater: 12
 
 kiln:
-    proportional: 1.0
-    integral: 2.0
-    derivative: 3.0
+  proportional: 1.0
+  integral: 2.0
+  derivative: 3.0

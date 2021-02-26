@@ -6,9 +6,6 @@
 /// Sample breakout board:
 ///   https://www.adafruit.com/product/4101
 ///
-use rppal::i2c::I2c;
-use tracing::error;
-
 use crate::sensor::thermocouple::ThermocoupleError;
 
 // Registers
@@ -43,8 +40,12 @@ const TOP_HALF_SIGN: u8 = 0x0F;
 const _DATA_SIGN: u8 = 0x03;
 
 #[cfg(target = "armv7-unknown-linux-gnueabihf")]
+#[cfg(target = "arm-unknown-linux-gnueabihf")]
 mod real {
     use super::*;
+    use rppal::i2c::I2c;
+    use tracing::error;
+
     pub struct MCP9600 {
         address: u16,
         i2c: I2c,
@@ -100,11 +101,13 @@ mod real {
 }
 
 #[cfg(not(target = "armv7-unknown-linux-gnueabihf"))]
+#[cfg(not(target = "arm-unknown-linux-gnueabihf"))]
 pub mod simulated {
     use super::*;
+    use tracing::debug;
 
     pub struct MCP9600 {
-        address: u16,
+        address: u16
     }
 
     impl MCP9600 {
@@ -113,11 +116,11 @@ pub mod simulated {
         }
 
         pub fn read_internal(&mut self) -> Result<f64, ThermocoupleError> {
-            Ok(0.0)
+            self.read_temperature(COLD_JUNCTION_TEMPERATURE, TOP_HALF_SIGN)
         }
 
         pub fn read(&mut self) -> Result<f64, ThermocoupleError> {
-            Ok(0.0)
+            self.read_temperature(HOT_JUNCTION_TEMPERATURE, FIRST_BIT_SIGN)
         }
 
         fn read_temperature(
@@ -125,6 +128,7 @@ pub mod simulated {
             junction: u8,
             sign_bits: u8,
         ) -> Result<f64, ThermocoupleError> {
+            debug!(junction, sign_bits, self.address);
             Ok(0.0)
         }
 

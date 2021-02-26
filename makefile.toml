@@ -1,0 +1,62 @@
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.build]
+command = "cargo"
+args = ["build"]
+dependencies = ["clean"]
+
+[tasks.test]
+command = "cargo"
+args = ["test"]
+dependencies = ["clean"]
+
+[tasks.check]
+command = "cargo"
+args = ["check"]
+
+[tasks.client]
+command = "npm"
+args = ["run", "build"]
+
+[tasks.build-rpi-zero-examples]
+env = { CROSS_DOCKER_IN_DOCKER = true, TARGET = "arm-unknown-linux-gnueabihf" }
+install_crate = "cross"
+command = "cross"
+args = ["build", "--release", "--examples", "--target", "${TARGET}"]
+
+[tasks.build-rpi-zero]
+env = { TARGET = "arm-unknown-linux-gnueabihf" }
+run_task = "build-rpi"
+
+[tasks.test-rpi-zero]
+env = { TARGET = "arm-unknown-linux-gnueabihf" }
+run_task = "test-rpi"
+
+[tasks.build-rpi-4]
+env = { TARGET = "armv7-unknown-linux-gnueabihf" }
+run_task = "build-rpi"
+
+[tasks.test-rpi-4]
+env = { TARGET = "armv7-unknown-linux-gnueabihf" }
+run_task = "test-rpi"
+
+[tasks.test-rpi]
+env = { CROSS_DOCKER_IN_DOCKER = true }
+condition = { env_set = ["TARGET"] }
+install_crate = "cross"
+command = "cross"
+args = ["test", "${TARGET}"]
+
+[tasks.build-rpi]
+env = { CROSS_DOCKER_IN_DOCKER = true }
+condition = { env_set = ["TARGET"] }
+install_crate = "cross"
+command = "cross"
+args = ["build", "--release", "--target", "${TARGET}"]
