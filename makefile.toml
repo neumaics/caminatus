@@ -21,9 +21,28 @@ dependencies = ["clean"]
 command = "cargo"
 args = ["check"]
 
+###
+# Packaging tasks
 [tasks.client]
 command = "npm"
 args = ["run", "build"]
+
+[tasks.package-all]
+env = { TARGET = "arm-unknown-linux-gnueabihf", VERSION = "0.0.0" }
+script_runner = "@duckscript"
+script = '''
+rm -r ./target/${TARGET}/package
+rm -r ./target/caminatus-${VERSION}.tar.gz
+
+cp ./public ./target/${TARGET}/package/caminatus-${VERSION}
+cp ./target/${TARGET}/release/caminatus ./target/${TARGET}/package/caminatus-${VERSION}/caminatus
+cp ./config.yaml.example ./target/${TARGET}/package/caminatus-${VERSION}/config.yaml
+'''
+
+[tasks.package-compress]
+env = { TARGET ="arm-unknown-linux-gnueabihf", VERSION = "0.0.0" }
+command = "tar"
+args = ["-czvf", "./target/caminatus-${VERSION}.tar.gz", "-C", "./target/${TARGET}/package", "."]
 
 [tasks.build-rpi-zero-examples]
 env = { CROSS_DOCKER_IN_DOCKER = true, TARGET = "arm-unknown-linux-gnueabihf" }
