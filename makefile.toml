@@ -1,3 +1,15 @@
+[env]
+VERSION = "${CARGO_MAKE_PROJECT_VERSION}"
+EXAMPLES = { script = ["find ./examples -type f -iname '*.rs' -exec basename {} .rs ';' | tr '\n' ' '"] }
+
+[env.rpi-4]
+NAME = "rpi4"
+TARGET = "armv7-unknown-linux-gnueabihf"
+
+[env.rpi-0]
+NAME = "rpi0"
+TARGET = "arm-unknown-linux-gnueabihf"
+
 [tasks.format]
 install_crate = "rustfmt"
 command = "cargo"
@@ -27,55 +39,83 @@ args = ["check"]
 command = "npm"
 args = ["run", "build"]
 
-[tasks.package-all]
-env = { TARGET = "arm-unknown-linux-gnueabihf", VERSION = "0.0.0" }
+[tasks.generate-build-info]
+env = { CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-play" }
+condition = { env_set = ["TARGET", "NAME"] }
+script_runner = "@rust"
+script = '''
+//# chrono = "0.4"
+
+use std::env;
+use std::fs;
+use chrono::prelude::*;
+
+fn main() {
+    let arch = env::var("TARGET").unwrap();
+    let branch = env::var("CARGO_MAKE_GIT_BRANCH").unwrap();
+    let commit = env::var("CARGO_MAKE_GIT_HEAD_LAST_COMMIT_HASH").unwrap();
+    let date = Utc::now();
+    let version = env::var("VERSION").unwrap();
+
+    let buildinfostr = format!(r#"{{
+    "arch": "{}",
+    "branch": "{}",
+    "commit": "{}",
+    "date": "{:?}",
+    'version": "{}"
+}}"#, arch, branch, commit, date, version);
+    let outdir = format!("./target/{}/package/caminatus-{}/public/build-info.json", arch, version);
+
+    println!("{}", buildinfostr);
+    let _ = fs::write(&outdir, &buildinfostr);
+    println!("wrote build-info.json to {}", outdir);
+}
+'''
+
+[tasks.copy-artifacts]
+condition = { env_set = ["TARGET", "NAME"] }
 script_runner = "@duckscript"
 script = '''
 rm -r ./target/${TARGET}/package
-rm -r ./target/caminatus-${VERSION}.tar.gz
+rm -r ./target/caminatus-${NAME}-${VERSION}.tar.gz
 
 cp ./public ./target/${TARGET}/package/caminatus-${VERSION}
 cp ./target/${TARGET}/release/caminatus ./target/${TARGET}/package/caminatus-${VERSION}/caminatus
 cp ./config.yaml.example ./target/${TARGET}/package/caminatus-${VERSION}/config.yaml
+
+examples = array %{EXAMPLES}
+
+for example in ${examples}
+  echo ${example}
+  cp ./target/${TARGET}/release/examples/${example} ./target/${TARGET}/package/caminatus-${VERSION}/examples/${example}
+end
 '''
 
-[tasks.package-compress]
-env = { TARGET ="arm-unknown-linux-gnueabihf", VERSION = "0.0.0" }
+# compress artifact
+[tasks.compress-artifacts]
+condition = { env_set = ["TARGET", "NAME"] }
 command = "tar"
-args = ["-czvf", "./target/caminatus-${VERSION}.tar.gz", "-C", "./target/${TARGET}/package", "."]
+args = ["-czvf", "./target/caminatus-${NAME}-${VERSION}.tar.gz", "-C", "./target/${TARGET}/package", "."]
 
-[tasks.build-rpi-zero-examples]
-env = { CROSS_DOCKER_IN_DOCKER = true, TARGET = "arm-unknown-linux-gnueabihf" }
-install_crate = "cross"
-command = "cross"
-args = ["build", "--release", "--examples", "--target", "${TARGET}"]
-
-[tasks.build-rpi-zero]
-env = { TARGET = "arm-unknown-linux-gnueabihf" }
-run_task = "build-rpi"
-
-[tasks.test-rpi-zero]
-env = { TARGET = "arm-unknown-linux-gnueabihf" }
-run_task = "test-rpi"
-
-[tasks.build-rpi-4]
-env = { TARGET = "armv7-unknown-linux-gnueabihf" }
-run_task = "build-rpi"
-
-[tasks.test-rpi-4]
-env = { TARGET = "armv7-unknown-linux-gnueabihf" }
-run_task = "test-rpi"
-
-[tasks.test-rpi]
+[tasks.cross-test]
 env = { CROSS_DOCKER_IN_DOCKER = true }
 condition = { env_set = ["TARGET"] }
 install_crate = "cross"
 command = "cross"
 args = ["test", "${TARGET}"]
 
-[tasks.build-rpi]
+[tasks.cross-build]
 env = { CROSS_DOCKER_IN_DOCKER = true }
 condition = { env_set = ["TARGET"] }
 install_crate = "cross"
 command = "cross"
-args = ["build", "--release", "--target", "${TARGET}"]
+args = ["build", "--release", "--all-targets", "--target", "${TARGET}"]
+
+[tasks.cross-package]
+dependencies = [
+  "cross-test",
+  "cross-build",
+  "copy-artifacts",
+  "generate-build-info",
+  "compress-artifacts",
+]

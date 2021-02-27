@@ -71,6 +71,6 @@ fn subscribe(
         id: Uuid::parse_str(&id).unwrap(),
     });
     Response::builder()
-        .status(warp::http::StatusCode::OK)
+        .status(StatusCode::OK)
         .body("{}".to_string())
 }

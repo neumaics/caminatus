@@ -24,10 +24,13 @@ pub async fn start(conf: Config, manager_sender: Sender<Command>) -> Result<()> 
 
         let js = warp::path("bundle.js").and(warp::filters::fs::file("public/bundle.js"));
 
+        let build_info = warp::path("build-info").and(warp::filters::fs::file("public/build-info.json"));
+
         let routes = index
             .or(js)
             .or(public)
             .or(app)
+            .or(build_info)
             .or(sse::routes(&manager_sender))
             .or(device::routes(Some("./schedules".to_string()), m3))
             .or(schedules::routes(Some("./schedules".to_string())))
