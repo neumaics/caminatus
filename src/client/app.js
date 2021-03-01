@@ -1,6 +1,7 @@
 import React from 'react';
 import { Route, Switch } from 'wouter';
 
+import { Dashboard } from './dashboard';
 import { Schedules, Schedule, CreateSchedule } from './schedule';
 import { Nav } from './nav';
 import styled from 'styled-components';
@@ -24,6 +25,8 @@ export const App = () => (<Container>
   <Nav />
   <Content>
     <Switch>
+      <Route path='/' component={Dashboard} />
+      <Route path='/app' component={Dashboard} />
       <Route path='/app/schedules' component={Schedules} />
       <Route path='/app/schedules/create' component={CreateSchedule} />
       <Route path='/app/schedules/:scheduleName' component={Schedule} />

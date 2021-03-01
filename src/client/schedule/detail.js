@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import PropTypes from 'prop-types';
+
+import { byName } from './common';
 
 const ScheduleDetail = styled.div`
 
@@ -29,10 +32,9 @@ const StepTable = styled.table`
 
 export const Schedule = ({ params }) => {
   const [schedule, setSchedule] = useState(null);
-
-  const getScheduleInfo = () => fetch(`http://${location.host}/schedules/${params.scheduleName}`)
-    .then(response => response.json())
-    .then(setSchedule);
+  
+  const getScheduleInfo = () => byName(params.scheduleName)
+    .then((s) => setSchedule(s));
 
   const graph = (
     <div></div>
@@ -49,13 +51,20 @@ export const Schedule = ({ params }) => {
         <thead>
         </thead>
         <tbody>
-          {schedule.steps.map((s, i) => (<tr key={i}>
-            <td>{i + 1}</td>
-            <td>{s}</td>
+          {schedule && schedule.steps &&  schedule.steps.length > 0 && schedule.steps.map((s, i) => (
+            <tr key={i}>
+              <td>{i + 1}</td>
+              <td>{s}</td>
 
-          </tr>))}
+            </tr>))}
         </tbody>
       </StepTable>
     </ScheduleData>
   </ScheduleDetail>);
+};
+
+Schedule.propTypes = {
+  params: PropTypes.shape({
+    scheduleName: PropTypes.string
+  }),
 };

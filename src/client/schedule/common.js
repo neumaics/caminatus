@@ -103,3 +103,26 @@ export const save = (schedule) =>
     body: JSON.stringify(schedule)
   })
     .then(response => response.json());
+
+export const byName = (name, normalized = false) => fetch(`http://${location.host}/schedules/${name}?normalize=${normalized}`)
+  .then(response => response.json());
+
+
+export const toGraphN = (normalized) => {
+  const length = normalized.steps.length;
+
+  return normalized.steps.reduce((acc, step, index) => {
+    acc.push({
+      x: step.start_time,
+      y: step.start_temperature,
+    });
+
+    if (index === length - 1) {
+      acc.push({
+        x: step.end_time,
+        y: step.end_temperature
+      });
+    }
+    return acc;
+  }, []);
+};
