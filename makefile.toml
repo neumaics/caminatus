@@ -37,7 +37,7 @@ args = ["check"]
 # Packaging tasks
 [tasks.client]
 command = "npm"
-args = ["run", "build"]
+args = ["run", "build:release"]
 
 [tasks.generate-build-info]
 env = { CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-play" }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import * as Scale from '@visx/scale';
 import styled from 'styled-components';
 import {
@@ -11,6 +11,7 @@ import {
 import { ParentSize } from '@visx/responsive';
 
 import { byName, toGraphN } from './schedule/common';
+import { ServerEventsContext } from './server-events';
 
 const GraphContainer = styled.div`
   height: 100%;
@@ -40,6 +41,7 @@ const accessors = {
 export const Dashboard = () => {
   const [schedule, setSchedule] = useState({ name: '' });
   const [liveTemp, setLiveTemp] = useState([]);
+  const [setTemp, setSetTemp] = useState([]);
   const [graphData, setGraphData] = useState([]);
 
   useEffect(() => {
@@ -48,6 +50,33 @@ export const Dashboard = () => {
       setSchedule(s);
     });
   }, []);
+  
+  const c = useContext(ServerEventsContext);
+  useEffect(() => {
+    const unregister = c && typeof c.register === 'function' && c.register('kiln', (message) => {
+      const data = JSON.parse(message.data);
+
+      if (data.state.toLowerCase() === 'running') {
+        const measureddatapoint = { x: data.runtime, y: data.temperature };
+        const setdatapoint = { x: data.runtime, y: data.setPoint };
+
+        liveTemp.push(measureddatapoint);
+        setTemp.push(setdatapoint);
+
+        setLiveTemp(liveTemp);
+        setSetTemp(setTemp);
+      }
+
+      if (data.state.toLowerCase() === 'idle') {
+        setLiveTemp([]);
+        setSetTemp([]);
+      }
+    });
+
+    return () => {
+      unregister && unregister();
+    };
+  }, [c]);
 
   return (
     <GraphContainer>
@@ -77,8 +106,9 @@ export const Dashboard = () => {
             tickClassName='axis-tick'
           />
           <AnimatedGrid columns={false} numTicks={4} />
-          <AnimatedLineSeries dataKey='set' data={graphData} {...accessors} />
-          <AnimatedLineSeries dataKey='Line 2' data={liveTemp} {...accessors} />
+          <AnimatedLineSeries dataKey='scheduled' data={graphData} {...accessors} />
+          <AnimatedLineSeries dataKey='live' data={liveTemp} {...accessors} />
+          <AnimatedLineSeries dataKey='set' data={setTemp} {...accessors} />
           <Tooltip
             snapTooltipToDatumX
             snapTooltipToDatumY

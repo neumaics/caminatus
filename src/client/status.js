@@ -1,53 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
+import React, { useState, useContext, useEffect } from 'react';
 import styled from 'styled-components';
+
+import { ServerEventsContext } from './server-events';
 
 const Readout = styled.a`
   font-family: 'IBM Plex Mono', sans-serif;
 `;
 
-const subscribe = (id, channel) => 
-  fetch(`http://${location.host}/subscribe/${id}/${channel}`, { method: 'post' });
-
-export const StatusBar = (props) => {
+export const StatusBar = () => {
   const [temp, setTemp] = useState(0.0.toFixed(2));
   const [setPoint, setSetPoint] = useState(0.0.toFixed(2));
   const [state, setState] = useState('Idle');
-  const [id, setId] = useState('');
-  const [connected, setConnected] = useState(EventSource.CONNECTING);
+
+  const c = useContext(ServerEventsContext);
 
   useEffect(() => {
-    const eventSource = new EventSource(`http://${location.host}/connect`);
-    eventSource.addEventListener('id', (msg) => {
-      const clientId = msg.data;
-      setId(clientId);
-
-      subscribe(clientId, 'kiln');
-      subscribe(clientId, 'system');
-    });
-
-    eventSource.onopen = (ev) => {
-      console.log(ev);
-      setConnected(eventSource.readyState);
-    };
-
-    eventSource.onerror = (ev) => {
-      console.error("error connecting to server", ev);
-    };
-
-    eventSource.addEventListener('kiln', message => {
+    c && typeof c.register === 'function' && c.register('kiln', (message) => {
       const data = JSON.parse(message.data);
 
       setState(data.state);
       setTemp(data.temperature.toFixed(2));
       setSetPoint(data.setPoint.toFixed(2));
     });
-
-    eventSource.addEventListener('system', message => {
-      console.log(message.data);
-    });
-
-  }, []);
+  }, [c]);
 
   return (
     <>
@@ -59,9 +34,4 @@ export const StatusBar = (props) => {
       <Readout>{state}</Readout>
     </>
   );
-};
-
-StatusBar.propTypes = {
-  children: PropTypes.node,
-  href: PropTypes.string,
 };

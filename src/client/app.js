@@ -1,6 +1,7 @@
 import React from 'react';
 import { Route, Switch } from 'wouter';
 
+import { SeverEventsProvider } from './server-events';
 import { Dashboard } from './dashboard';
 import { Schedules, Schedule, CreateSchedule } from './schedule';
 import { Nav } from './nav';
@@ -22,15 +23,17 @@ const Content = styled.div`
 `;
 
 export const App = () => (<Container>
-  <Nav />
-  <Content>
-    <Switch>
-      <Route path='/' component={Dashboard} />
-      <Route path='/app' component={Dashboard} />
-      <Route path='/app/schedules' component={Schedules} />
-      <Route path='/app/schedules/create' component={CreateSchedule} />
-      <Route path='/app/schedules/:scheduleName' component={Schedule} />
-    </Switch>
-  </Content>
+  <SeverEventsProvider>
+    <Nav />
+    <Content>
+      <Switch>
+        <Route path='/' component={Dashboard} />
+        <Route path='/app' component={Dashboard} />
+        <Route path='/app/schedules' component={Schedules} />
+        <Route path='/app/schedules/create' component={CreateSchedule} />
+        <Route path='/app/schedules/:scheduleName' component={Schedule} />
+      </Switch>
+    </Content>
+  </SeverEventsProvider>
 </Container>
 );
