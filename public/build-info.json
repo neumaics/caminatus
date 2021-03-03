@@ -1,7 +1,7 @@
 {
-  "arch": "",
-  "branch": "",
-  "commit": "",
-  "date": "",
-  "version": ""
+  "arch": "unknown",
+  "branch": "unknown",
+  "commit": "unknown",
+  "date": "unknown",
+  "version": "unknown"
 }

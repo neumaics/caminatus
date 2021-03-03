@@ -5,6 +5,7 @@ import {
   AnimatedAxis,
   AnimatedGrid,
   AnimatedLineSeries,
+  LineSeries,
   XYChart,
   Tooltip,
 } from '@visx/xychart';
@@ -106,9 +107,9 @@ export const Dashboard = () => {
             tickClassName='axis-tick'
           />
           <AnimatedGrid columns={false} numTicks={4} />
-          <AnimatedLineSeries dataKey='scheduled' data={graphData} {...accessors} />
-          <AnimatedLineSeries dataKey='live' data={liveTemp} {...accessors} />
-          <AnimatedLineSeries dataKey='set' data={setTemp} {...accessors} />
+          <LineSeries dataKey='scheduled' data={graphData} {...accessors} />
+          <LineSeries dataKey='live' data={liveTemp} {...accessors} />
+          <LineSeries dataKey='set' data={setTemp} {...accessors} />
           <Tooltip
             snapTooltipToDatumX
             snapTooltipToDatumY

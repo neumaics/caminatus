@@ -51,4 +51,5 @@ export const Nav = () => (
   <NavBar>
     <StatusBar></StatusBar>
     <NavBarLink href='/app/schedules'>Schedules</NavBarLink>
+    <NavBarLink href='/app/settings'>Settings</NavBarLink>
   </NavBar>);
