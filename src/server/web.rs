@@ -16,7 +16,10 @@ pub async fn start(conf: Config, manager_sender: Sender<Command>) {
     tokio::spawn(async move {
         let routes = static_file::routes()
             .or(sse::routes(&manager_sender))
-            .or(device::routes(Some("./schedules".to_string()), &manager_sender))
+            .or(device::routes(
+                Some("./schedules".to_string()),
+                &manager_sender,
+            ))
             .or(schedules::routes(Some("./schedules".to_string())))
             .or(steps::routes());
 

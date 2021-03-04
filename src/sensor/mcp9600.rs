@@ -39,7 +39,10 @@ const TOP_HALF_SIGN: u8 = 0x0F;
 // The Raw Data ADC register uses the first six bits of the upper byte as the sign.
 const _DATA_SIGN: u8 = 0x03;
 
-#[cfg(any(target = "armv7-unknown-linux-gnueabihf", target = "arm-unknown-linux-gnueabihf"))]
+#[cfg(any(
+    target = "armv7-unknown-linux-gnueabihf",
+    target = "arm-unknown-linux-gnueabihf"
+))]
 mod real {
     use super::*;
     use rppal::i2c::I2c;
@@ -99,13 +102,16 @@ mod real {
     }
 }
 
-#[cfg(not(any(target = "armv7-unknown-linux-gnueabihf", target = "arm-unknown-linux-gnueabihf")))]
+#[cfg(not(any(
+    target = "armv7-unknown-linux-gnueabihf",
+    target = "arm-unknown-linux-gnueabihf"
+)))]
 pub mod simulated {
     use super::*;
     use tracing::debug;
 
     pub struct MCP9600 {
-        address: u16
+        address: u16,
     }
 
     impl MCP9600 {

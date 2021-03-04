@@ -22,7 +22,10 @@ impl std::fmt::Display for HeaterError {
     }
 }
 
-#[cfg(any(target = "armv7-unknown-linux-gnueabihf", target = "arm-unknown-linux-gnueabihf"))]
+#[cfg(any(
+    target = "armv7-unknown-linux-gnueabihf",
+    target = "arm-unknown-linux-gnueabihf"
+))]
 pub mod real {
     use super::*;
     use rppal::gpio::{Gpio, OutputPin};
@@ -55,7 +58,10 @@ pub mod real {
     }
 }
 
-#[cfg(not(any(target = "armv7-unknown-linux-gnueabihf", target = "arm-unknown-linux-gnueabihf")))]
+#[cfg(not(any(
+    target = "armv7-unknown-linux-gnueabihf",
+    target = "arm-unknown-linux-gnueabihf"
+)))]
 pub mod simulated {
     use super::*;
 
