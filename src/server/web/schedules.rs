@@ -78,11 +78,11 @@ fn by_name(
     name: String,
     params: ScheduleParams,
 ) -> Result<Response<String>, http::Error> {
-    let norm = params.normalize.unwrap_or(false);
+    let should_normalize = params.normalize.unwrap_or(false);
 
     match Schedule::by_name(&name, &directory) {
         Ok(s) => {
-            if norm {
+            if should_normalize {
                 Response::builder()
                     .status(StatusCode::OK)
                     .body(s.normalize().unwrap().to_json())

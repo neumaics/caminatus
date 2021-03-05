@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::env;
 use std::fs;
 use std::net::Ipv4Addr;
-use std::path::Path;
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -55,8 +55,9 @@ pub struct WebConfig {
 }
 
 impl Config {
-    pub fn init() -> Result<Self, ConfigError> {
-        let content = fs::read_to_string(Path::new(DEFAULT_CONFIG_FILE))?;
+    pub fn init(file_location: Option<PathBuf>) -> Result<Self, ConfigError> {
+        let path = file_location.unwrap_or(PathBuf::from(DEFAULT_CONFIG_FILE));
+        let content = fs::read_to_string(path)?;
         let c: ConfigFile = serde_yaml::from_str(content.as_str())?;
         let config = Config::try_from(c)?;
 
