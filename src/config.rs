@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 const DEFAULT_CONFIG_FILE: &str = "./config.yaml";
 const DEFAULT_LOG_LEVEL: &str = "info";
+const DEFAULT_POLL_DURATION: u32 = 1000;
 
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
@@ -69,7 +70,7 @@ impl Config {
 
 #[derive(Debug)]
 pub enum ConfigError {
-    FileError,
+    FileError(String),
     ParseError,
 }
 
@@ -78,7 +79,7 @@ impl std::error::Error for ConfigError {}
 impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ConfigError::FileError => write!(f, "File Error"),
+            ConfigError::FileError(src) => write!(f, "Error reading config file: {}", src),
             ConfigError::ParseError => write!(f, "Parse Error"),
         }
     }
@@ -100,7 +101,7 @@ impl TryFrom<ConfigFile> for Config {
             gpio: GpioConfig {
                 heater: value.gpio.heater,
             },
-            poll_interval: value.poll_interval.unwrap_or(1000), // TODO: enforce value greater than 0
+            poll_interval: value.poll_interval.unwrap_or(DEFAULT_POLL_DURATION), // TODO: enforce value greater than 0
             thermocouple_address: value.thermocouple_address,
             kiln: KilnConfig {
                 proportional: value.kiln.proportional,
@@ -114,8 +115,8 @@ impl TryFrom<ConfigFile> for Config {
 }
 
 impl From<std::io::Error> for ConfigError {
-    fn from(_: std::io::Error) -> Self {
-        ConfigError::FileError
+    fn from(error: std::io::Error) -> Self {
+        ConfigError::FileError(format!("{:?}", error))
     }
 }
 
