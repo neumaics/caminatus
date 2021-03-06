@@ -4,6 +4,9 @@ web:
   host_ip: "127.0.0.1"
   keep_alive_interval: 10000
 
+# Directory where schedules are stored
+schedules_folder: ./schedules
+
 # In seconds
 poll_interval: 10000
 

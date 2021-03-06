@@ -12,9 +12,8 @@ use crate::server::Command;
 
 use super::error::ErrorResponse;
 
-pub fn routes(directory: Option<String>, manager: &Sender<Command>) -> BoxedFilter<(impl Reply,)> {
-    let dir = directory.unwrap_or("./schedules".to_string());
-    let dir = warp::any().map(move || dir.clone());
+pub fn routes(directory: String, manager: &Sender<Command>) -> BoxedFilter<(impl Reply,)> {
+    let dir = warp::any().map(move || directory.clone());
     let m2 = manager.clone();
     let m3 = manager.clone();
     let manager2 = warp::any().map(move || m2.clone());

@@ -17,10 +17,10 @@ pub async fn start(conf: Config, manager_sender: Sender<Command>) {
         let routes = static_file::routes()
             .or(sse::routes(&manager_sender))
             .or(device::routes(
-                Some("./schedules".to_string()),
+                conf.schedules_folder.clone(),
                 &manager_sender,
             ))
-            .or(schedules::routes(Some("./schedules".to_string())))
+            .or(schedules::routes(conf.schedules_folder.clone()))
             .or(steps::routes());
 
         warp::serve(routes)

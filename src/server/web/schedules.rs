@@ -18,9 +18,8 @@ struct ScheduleParams {
     pub normalize: Option<bool>,
 }
 
-pub fn routes(directory: Option<String>) -> BoxedFilter<(impl Reply,)> {
-    let dir = directory.unwrap_or("./schedules".to_string());
-    let dir = warp::any().map(move || dir.clone());
+pub fn routes(directory: String) -> BoxedFilter<(impl Reply,)> {
+    let dir = warp::any().map(move || directory.clone());
 
     let schedules = warp::get()
         .and(dir.clone())
@@ -171,7 +170,7 @@ mod route_tests {
 
     #[tokio::test]
     async fn should_get_all_available_schedules() {
-        let filter = routes(Some("./tests/sample_schedules".to_string()));
+        let filter = routes("./tests/sample_schedules".to_string());
 
         let response = warp::test::request()
             .path("/schedules")
@@ -183,7 +182,7 @@ mod route_tests {
 
     #[tokio::test]
     async fn should_get_schedule_by_id() {
-        let filter = routes(Some("./tests/sample_schedules".to_string()));
+        let filter = routes("./tests/sample_schedules".to_string());
 
         let response = warp::test::request()
             .path("/schedules/valid")
@@ -202,7 +201,7 @@ mod route_tests {
 
     #[tokio::test]
     async fn should_accept_normalize_parameter() {
-        let filter = routes(Some("./tests/sample_schedules".to_string()));
+        let filter = routes("./tests/sample_schedules".to_string());
 
         let response = warp::test::request()
             .path("/schedules/valid?normalize=true")
@@ -221,7 +220,7 @@ mod route_tests {
 
     #[tokio::test]
     async fn should_validate_normalize_parameter() {
-        let filter = routes(Some("./tests/sample_schedules".to_string()));
+        let filter = routes("./tests/sample_schedules".to_string());
 
         let response = warp::test::request()
             .path("/schedules/valid?normalize=not%20a%20boolean")
@@ -236,7 +235,7 @@ mod route_tests {
         let dir = tempdir()?;
         let file_path = dir.path().join("");
         let valid = fs::read_to_string("./tests/sample_schedules/valid.json")?;
-        let filter = routes(Some(file_path.into_os_string().into_string().unwrap()));
+        let filter = routes(file_path.into_os_string().into_string().unwrap());
         let response = warp::test::request()
             .method("POST")
             .path("/schedules")
@@ -255,9 +254,7 @@ mod route_tests {
         let dir = tempdir()?;
         let file_path = dir.path().join("");
         let valid = fs::read_to_string("./tests/sample_schedules/valid.json")?;
-        let filter = routes(Some(
-            file_path.clone().into_os_string().into_string().unwrap(),
-        ));
+        let filter = routes(file_path.clone().into_os_string().into_string().unwrap());
         let response = warp::test::request()
             .method("POST")
             .path("/schedules")
