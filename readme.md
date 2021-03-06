@@ -3,6 +3,10 @@ Raspberry Pi Kiln Controller
 
 <del>Ripped off from</del> Inspired by https://github.com/jbruce12000/kiln-controller
 
+**Warning**: this system not yet been tested on a real kiln/oven/furnace. If you somehow manage
+to get it working in its current state, you use at your own risk! Not intended for exposure to the
+public internet.
+
 ## Purpose
 Caminatus can be used to control kilns and furnaces.
 
@@ -27,7 +31,7 @@ rust/cargo, fish and other utilties.
 Requirements:
 * Docker
 
-Caminautus has only been tested on Raspberry Pi Zero and 3, but should be able to work on the other
+Caminatus has only been tested on Raspberry Pi Zero and 3, but should be able to work on the other
 Raspberry Pi models. Builds for Raspberry Pis currently rely on
 [cargo-make](https://github.com/sagiegurari/cargo-make).
 Tasks for building are defined in [makefile.toml]('./makefile.toml).

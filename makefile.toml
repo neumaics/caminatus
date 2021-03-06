@@ -37,7 +37,7 @@ args = ["check"]
 # Packaging tasks
 [tasks.client]
 command = "npm"
-args = ["run", "build:release"]
+args = ["run", "--prefix", "./src/client", "build:release"]
 
 [tasks.generate-build-info]
 env = { CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-play" }
@@ -87,7 +87,6 @@ cp ./config.yaml.example ./target/${TARGET}/package/caminatus-${VERSION}/config.
 examples = array %{EXAMPLES}
 
 for example in ${examples}
-  echo ${example}
   cp ./target/${TARGET}/release/examples/${example} ./target/${TARGET}/package/caminatus-${VERSION}/examples/${example}
 end
 '''
