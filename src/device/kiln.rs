@@ -1,9 +1,9 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use anyhow::Result;
-use rsfuzzy::*;
+
 use serde::Serialize;
 use serde_json;
 use tokio::sync::{broadcast, mpsc};
@@ -12,10 +12,13 @@ use tokio::time::sleep;
 use tracing::{error, info, instrument, trace, warn};
 use uuid::Uuid;
 
+mod controller;
+
 use crate::config::KilnConfig;
 use crate::schedule::NormalizedSchedule;
 use crate::sensor::{Heater, MCP9600};
 use crate::server::Command;
+use controller::{Fuzzy, PID};
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
 pub enum KilnState {
@@ -124,12 +127,13 @@ impl Kiln {
                 match state {
                     KilnState::Running => {
                         set_point = schedule.clone().expect("valid").target_temperature(runtime);
+                        let error = set_point - temperature;
                         let p = pid.compute(&set_point, temperature);
-                        let _f = FuzzyController::init().compute(0.0, 0.0); //ugh
+                        let f = Fuzzy::init(config.fuzzy_step_size).compute(error as f32); //ugh
                         let on_time = (interval as f64 * p).floor() as u64;
                         let off_time = (interval as u64) - on_time;
 
-                        info!(on_time, off_time);
+                        info!(on_time, off_time, "p: {} f: {}", p as f64, f as f64);
                         heater.on();
                         sleep(Duration::from_millis(on_time)).await;
                         heater.off();
@@ -201,114 +205,5 @@ impl std::error::Error for KilnError {}
 impl std::fmt::Display for KilnError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Kiln Error")
-    }
-}
-pub struct FuzzyController {
-    engine: rsfuzzy::Engine,
-}
-
-impl FuzzyController {
-    /// Ripped off from
-    ///   https://github.com/auseckas/rsfuzzy
-    pub fn init() -> FuzzyController {
-        let mut f_engine = rsfuzzy::Engine::new();
-
-        let i_var1 = fz_input_var![
-            ("down", "normal", vec![0.0, 30.0]),
-            ("triangle", "low", vec![15.0, 30.0, 40.0]),
-            ("triangle", "medium", vec![30.0, 40.0, 55.0]),
-            ("triangle", "high", vec![40.0, 60.0, 75.0]),
-            ("up", "critical", vec![60.0, 100.0])
-        ];
-        f_engine.add_input_var("var1", i_var1, 0, 100);
-
-        let i_var2 = fz_input_var![
-            ("down", "normal", vec![0.0, 30.0]),
-            ("triangle", "low", vec![15.0, 30.0, 40.0]),
-            ("triangle", "medium", vec![30.0, 40.0, 55.0]),
-            ("triangle", "high", vec![40.0, 60.0, 75.0]),
-            ("up", "critical", vec![60.0, 100.0])
-        ];
-
-        f_engine.add_input_var("var2", i_var2, 0, 100);
-
-        let o_var = fz_output_var![
-            ("down", "normal", vec![0.0, 30.0]),
-            ("triangle", "low", vec![15.0, 30.0, 40.0]),
-            ("triangle", "medium", vec![30.0, 40.0, 55.0]),
-            ("triangle", "high", vec![40.0, 60.0, 75.0]),
-            ("up", "critical", vec![60.0, 100.0])
-        ];
-        f_engine.add_output_var("output", o_var, 0, 100);
-
-        let f_rules = vec![
-            ("if var1 is normal and var2 is normal then output is normal"),
-            ("if var1 is very low and var2 is normal then output is very low"),
-            ("if var1 is low then output is low"),
-            ("if var1 is medium then output is medium"),
-            ("if var1 is high then output is high"),
-            ("if var1 is critical then output is critical"),
-            ("if var1 is low and var2 is high then output is medium"),
-        ];
-
-        f_engine.add_rules(f_rules);
-        f_engine.add_defuzz("centroid");
-
-        FuzzyController { engine: f_engine }
-    }
-
-    pub fn compute(self, var1: f32, var2: f32) -> f32 {
-        let inputs = fz_set_inputs![("var1", var1), ("var2", var2)];
-
-        self.engine.calculate(inputs)
-    }
-}
-
-#[derive(Debug)]
-struct PID {
-    k_i: f64,
-    k_p: f64,
-    k_d: f64,
-    last_now: std::time::SystemTime,
-    i_term: f64,
-    last_error: f64,
-}
-
-///  A pretty blatant ripoff/rewrite of:
-///    https://github.com/jbruce12000/kiln-controller/blob/master/lib/oven.py#L322
-impl PID {
-    fn init(k_i: f64, k_p: f64, k_d: f64) -> PID {
-        PID {
-            k_i,
-            k_p,
-            k_d,
-            last_now: SystemTime::now(),
-            i_term: 0.0,
-            last_error: 0.0,
-        }
-    }
-
-    fn compute(&mut self, set_point: &f64, is_point: &f64) -> f64 {
-        let now = SystemTime::now();
-        let delta: u64 = self.last_now.elapsed().unwrap().as_secs();
-
-        let error: f64 = *set_point - *is_point;
-
-        self.i_term += error * delta as f64 * self.k_i;
-        let mut sorted = vec![-1.0, self.i_term, 1.0];
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        self.i_term = sorted[1];
-
-        let d_error = (error - self.last_error) / delta as f64;
-
-        let o: f64 = (self.k_p * error) + self.i_term + self.k_d * d_error;
-        let mut sorted = vec![-1.0, o, 1.0];
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        let output = sorted[1];
-
-        self.last_error = error;
-        self.last_now = now;
-        output
     }
 }

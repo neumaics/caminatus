@@ -16,6 +16,7 @@ impl StreamWriter {
     }
 }
 
+/// Forwards log messages to the manager that clients can subscribe to
 impl std::io::Write for StreamWriter {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let log = std::str::from_utf8(buf).unwrap();

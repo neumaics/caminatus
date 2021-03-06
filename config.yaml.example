@@ -20,6 +20,10 @@ gpio:
   heater: 12
 
 kiln:
-  proportional: 1.0
-  integral: 2.0
-  derivative: 3.0
+  # The maximum difference between recorded temperature and set point
+  max_difference: 25 # in celsius
+  max_temp: 2150 # in celsius
+  proportional: 25.0
+  integral: 1088.0
+  derivative: 217.0
+  fuzzy_step_size: 10.0

@@ -7,8 +7,6 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-use crate::schedule;
-
 pub const DEFAULT_CONFIG_FILE: &str = "./config.yaml";
 pub const DEFAULT_SCHEDULES_FOLDER: &str = "./schedules";
 pub const DEFAULT_LOG_LEVEL: &str = "info";
@@ -39,6 +37,8 @@ struct ConfigFile {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KilnConfig {
+    pub fuzzy_step_size: f32,
+    pub max_difference: f32,
     pub proportional: f64,
     pub integral: f64,
     pub derivative: f64,
@@ -110,6 +110,8 @@ impl Config {
             poll_interval: self.poll_interval,
             thermocouple_address: self.thermocouple_address,
             kiln: KilnConfig {
+                fuzzy_step_size: self.kiln.fuzzy_step_size,
+                max_difference: self.kiln.max_difference,
                 proportional: self.kiln.proportional,
                 integral: self.kiln.integral,
                 derivative: self.kiln.derivative,
@@ -181,6 +183,8 @@ impl TryFrom<ConfigFile> for Config {
             poll_interval: value.poll_interval.unwrap_or(DEFAULT_POLL_DURATION), // TODO: enforce value greater than 0
             thermocouple_address: value.thermocouple_address,
             kiln: KilnConfig {
+                fuzzy_step_size: value.kiln.fuzzy_step_size,
+                max_difference: value.kiln.max_difference,
                 proportional: value.kiln.proportional,
                 integral: value.kiln.integral,
                 derivative: value.kiln.derivative,

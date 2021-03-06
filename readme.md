@@ -15,7 +15,9 @@ TBD
 
 ## Running
 ```bash
-> ./caminatus --config-file=./path/to/config.yaml
+> ./caminatus --config-file=./path/to/config.yaml \
+              --schedules-folder=./path/to/schedules
+
 ```
 
 ## Development
