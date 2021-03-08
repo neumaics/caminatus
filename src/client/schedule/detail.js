@@ -55,7 +55,6 @@ export const Schedule = ({ params }) => {
             <tr key={i}>
               <td>{i + 1}</td>
               <td>{s}</td>
-
             </tr>))}
         </tbody>
       </StepTable>

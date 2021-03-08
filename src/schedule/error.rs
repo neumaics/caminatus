@@ -11,6 +11,7 @@ pub enum ScheduleError {
     IOError { description: String },
     InvalidYaml { location: String },
     InvalidJson {},
+    InvalidName(String),
 }
 
 impl Display for ScheduleError {
@@ -24,6 +25,7 @@ impl Display for ScheduleError {
                 write!(f, "error reading yaml: {}", location)
             }
             ScheduleError::InvalidJson {} => write!(f, "error reading json"),
+            ScheduleError::InvalidName(name) => write!(f, "invalid schedule name [{}]", name),
         }
     }
 }

@@ -4,7 +4,6 @@ import styled from 'styled-components';
 import {
   AnimatedAxis,
   AnimatedGrid,
-  AnimatedLineSeries,
   LineSeries,
   XYChart,
   Tooltip,

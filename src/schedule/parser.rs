@@ -5,11 +5,16 @@ use std::{fs, io, str::FromStr};
 
 use anyhow::{anyhow, Result};
 use pest::Parser;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 use uuid::Uuid;
 
 use super::error::ScheduleError;
+
+const MAX_NAME_LENGTH: usize = 256;
+const RESERVED_CHARACTERS: &str = r#"[^-_.A-Za-z0-9]"#;
+const RESERVED_NAMES: &str = r#"(aux|clock\$|con|nul|prn|com[1-9]|lpt[1-9])(?:$|\.)"#;
 
 #[derive(pest_derive::Parser)]
 #[grammar = "schedule/step.pest"]
@@ -284,6 +289,7 @@ impl Schedule {
     }
 
     fn validate(schedule: &Schedule) -> Result<(), ScheduleError> {
+        let _ = Schedule::to_filename(&schedule.name)?;
         let step_validation: String = schedule
             .steps
             .iter()
@@ -307,6 +313,29 @@ impl Schedule {
             Err(ScheduleError::InvalidStep {
                 description: step_validation,
             })
+        }
+    }
+
+    /// Try to convert the provided name to a filename.
+    fn to_filename(name: &String) -> Result<String, ScheduleError> {
+        let filename_regex = Regex::new(RESERVED_CHARACTERS).unwrap();
+        let reserved_names = Regex::new(RESERVED_NAMES).unwrap();
+
+        let filename = name
+            .clone()
+            .split_whitespace()
+            .map(|s| s.into())
+            .collect::<Vec<String>>()
+            .join("_");
+        
+        if filename_regex.is_match(&filename) {
+            Err(ScheduleError::InvalidName(filename))
+        } else if reserved_names.is_match(&filename) {
+            Err(ScheduleError::InvalidName(format!("reserved names [{}]", filename)))
+        }else if filename.len() >= MAX_NAME_LENGTH {
+            Err(ScheduleError::InvalidName(format!("name too long [{}]", filename)))
+        } else {
+            Ok(filename)
         }
     }
 
@@ -370,11 +399,11 @@ impl Schedule {
     pub fn new(schedule: Schedule, schedule_directory: &String) -> Result<String, ScheduleError> {
         Schedule::validate(&schedule)?;
 
-        let id = Uuid::new_v4();
+        let id = Schedule::to_filename(&schedule.name)?;
         let mut file = File::create(format!(
             "{}/{}.yaml",
             schedule_directory,
-            id.to_string().as_str()
+            id
         ))?;
         let schedule_string: String = serde_yaml::to_string(&schedule)?;
         file.write_all(schedule_string.as_bytes())?;
@@ -382,6 +411,7 @@ impl Schedule {
         Ok(id.to_string())
     }
 
+    /// todo: update filename when name is updated
     pub fn update(
         id: String,
         schedule: Schedule,
@@ -647,5 +677,26 @@ mod parser_tests {
         assert_eq!(target, 0.0);
 
         Ok(())
+    }
+
+    #[test]
+    fn should_create_and_validate_schedule_names() -> Result<()> {
+        let name = Schedule::to_filename(&"name".to_string())?;
+        assert_eq!(name, "name".to_string());
+
+        let name = Schedule::to_filename(&"with spaces too".to_string())?;
+        assert_eq!(name, "with_spaces_too".to_string());
+
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_reject_bad_filenames() {
+        let name = Schedule::to_filename(&"with@spaces@too".to_string()).unwrap();
+        assert_eq!(name, "nope".to_string());
+
+        let name = Schedule::to_filename(&"nul".to_string()).unwrap();
+        assert_eq!(name, "not even".to_string());
     }
 }

@@ -2,9 +2,15 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link } from 'wouter';
 
-const ScheduleGrid = styled.div`
+const ScheduleListContainer = styled.div`
   display: grid;
+  grid-template-rows: 2em auto;
+  width: 100%;
+`;
+
+const ScheduleGrid = styled.div`
   /*grid-auto-rows: 3em;*/
+  display: grid;
   border-radius: 0.5em;
   overflow: hidden;
   width: 100%;
@@ -24,6 +30,8 @@ const ScheduleItem = styled.div`
 
 const ScheduleMenu = styled.div`
   margin-bottom: 1em;
+  display: flex;
+  flex-direction: row;
 `;
 
 export const Schedules = () => {
@@ -45,13 +53,14 @@ export const Schedules = () => {
   }
 
   return (
-    <>
+    <ScheduleListContainer>
       <ScheduleMenu>
-        {/* <button><Link href='/app/schedules/create'>+</Link></button> */}
+        <button><Link href='/app'>back</Link></button>
+        <button><Link href='/app/schedules/create'>+</Link></button>
       </ScheduleMenu>
       <ScheduleGrid>
         {scheduleItems}
       </ScheduleGrid>
-    </>
+    </ScheduleListContainer>
   );
 };
