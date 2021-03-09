@@ -2,7 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { useForm, useFieldArray } from 'react-hook-form';
 
-import { TEMPERATURE_SCALE, TIME_SCALE, STEP_TYPE, toServiceSchema, save } from './common';
+import { TEMPERATURE_SCALE, toServiceSchema, save } from './common';
 import { FormButton } from '../components';
 
 // Adapted from https://richjenks.com/filename-regex/
@@ -17,23 +17,16 @@ function Schedule() {
   return this;
 }
 
-function Step() {
-  this.description = '';
-  this.startTemperature = 0.0;
-  this.endTemperature = 0.0;
-  this.type = STEP_TYPE.DURATION;
-  this.unit = TIME_SCALE.HOURS;
-  this.stepValue = 0.0;
-
-  return this;
-}
+const validateStep = (stepText) => fetch(`http://${location.host}/step/parse/${encodeURIComponent(stepText)}`)
+  .then(resp => resp.ok);
 
 const FormContainer = styled.div`
   display: flex;
   background-color: #51595E;
-  border-radius: 0.5em;
+  border-radius: 2px;
   padding: 0.5em 1em;
   width: 100%;
+  overflow-y: scroll;
 
   > form {
     width: 100%;
@@ -47,7 +40,7 @@ const FormField = styled.label`
   > input[type='text' i] {
     width: 100%;
     padding: 0.25em 0;
-    border-radius: 0.5em;
+    border-radius: 2px;
     border: 2px solid transparent
   }
 `;
@@ -67,7 +60,7 @@ const TemperatureScaleSelect = styled.fieldset`
     padding: 0.25em 0.75em;
     font-size: 16px;
     border: 2px solid transparent;
-    border-radius: 0.5em;
+    border-radius: 2px;
     margin: 0 0.25em 0.25em 0.25em;
   }
 
@@ -77,7 +70,7 @@ const TemperatureScaleSelect = styled.fieldset`
     width: 0;
 
     &:checked + label {
-      background-color:#bfb;
+      background-color:#2ECC71;
       border-color: #4c4;
     }
 
@@ -96,27 +89,25 @@ const StepContainer = styled.div`
 
     > input[type='number'] {
       width: 12ch;
-      border-radius: 0.5em;
+      border-radius: 2px;
       border: 2px solid transparent;
       margin: 0 0.25em;
 
     }
 
     > select {
-      border-radius: 0.5em;
+      border-radius: 2px;
     }
   }
 `;
-
-const hasError = (errors, i, field, type) => errors.steps && errors.steps[i] && errors.steps[i][field].type === type;
 
 /**
  * @todo add configurable max temperature.
  */
 export const CreateSchedule = () => {
   const initialState = new Schedule();
-  initialState.steps.push(new Step());
-  initialState.steps.push(new Step());
+  initialState.steps.push({ text: '' });
+  initialState.steps.push({ text: '' });
 
   const {
     control,
@@ -124,7 +115,6 @@ export const CreateSchedule = () => {
     handleSubmit,
     register,
     setValue, 
-    watch,
   } = useForm({ defaultValues: initialState });
   const { fields, append, remove } = useFieldArray({ control, name: 'steps' });
 
@@ -132,7 +122,7 @@ export const CreateSchedule = () => {
     save(toServiceSchema(data));
   };
 
-  const addStep = () => append(new Step());
+  const addStep = () => append({ text: '' });
 
   const removeStep = (event, index) => {
     event.preventDefault();
@@ -160,10 +150,10 @@ export const CreateSchedule = () => {
           <input
             type='text'
             name='description'
-            ref={register({ maxLength: 512 })}
+            ref={register({ maxLength: 128 })}
             autoComplete='off'
           />
-          {errors.description && errors.description.type === 'maxLength' ? <span>exceeds maximum length (512)</span> : <span></span>}
+          {errors.description && errors.description.type === 'maxLength' ? <span>exceeds maximum length (128)</span> : <span></span>}
         </FormField>
         <TemperatureScaleSelect>
           <legend>Temperature Scale</legend>
@@ -178,49 +168,19 @@ export const CreateSchedule = () => {
         
         <StepContainer>
           {fields.map((step, i) => {
-            const watchType = watch('steps', STEP_TYPE.DURATION);
             return (
               <div key={step.id}>
                 <FormButton type='button' inverted={true} context='error' onClick={(e) => removeStep(e, i)}>-</FormButton>
                 <input
-                  name={`steps[${i}].startTemperature`}
-                  defaultValue={step.startTemperature}
-                  ref={register({ required: true, min: 0, max: 1400 })}
-                  type='number'
-                  step='0.01'
-                  min='0'
+                  type='text'
+                  name={`steps[${i}].text`}
+                  ref={register({ required: true, maxLength: 40, minLength: 1, validate: value => validateStep(value) })}
+                  autoComplete='off'
                 />
-                {/* {hasError(errors, i, 'startTemperature', 'min') && <span>must be greater than 0</span> }
-                {hasError(errors, i, 'startTemperature', 'max') && <span>must be less than 1400</span> } */}
-                <input
-                  name={`steps[${i}].endTemperature`}
-                  defaultValue={step.endTemperature}
-                  ref={register({ required: true, min: 0, max: 1400})}
-                  type='number'
-                  step='0.01'
-                  min='0'
-                />
-                {/* { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span> }
-                { errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'max' && <span>must be less than 1400</span> } */}
-                <select name={`steps[${i}].type`} ref={register()} defaultValue={step.type}>
-                  <option value={STEP_TYPE.RATE}>by</option>
-                  <option value={STEP_TYPE.DURATION}>over</option>
-                </select>
-                <input 
-                  name={`steps[${i}].stepValue`}
-                  type='number'
-                  defaultValue={step.stepValue}
-                  ref={register({ required: true, min: 0 })}
-                  min='0'
-                  step='1'
-                />
-                {/* {errors.steps && errors.steps[i] && errors.steps[i].endTemperature.type === 'min' && <span>must be greater than 0</span>} */}
-                {watchType[i].type === STEP_TYPE.RATE ? <span>per</span> : <span></span>}
-                <select name={`steps[${i}.unit]`} ref={register({ required: true })} defaultValue={step.unit}>
-                  {Object.values(TIME_SCALE).map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>); }
-          )}
+                {errors && errors.steps && errors.steps.length > 0 && errors.steps[i] && errors.steps[i].text ? <span>err</span> : <span></span>}
+              </div>
+            );
+          })}
         </StepContainer>
         <FormButton inverted={true} context='default' onClick={addStep}>+</FormButton>
         <div></div>

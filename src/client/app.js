@@ -20,7 +20,7 @@ const Container = styled.div`
 const Content = styled.div`
   display: flex;
   margin: 1em;
-  overflow-y: scroll;
+  overflow: hidden;
 `;
 
 export const App = () => (<Container>
@@ -29,7 +29,7 @@ export const App = () => (<Container>
     <Content>
       <Switch>
         <Route path='/' component={Dashboard} />
-        <Route path='/app' component={Dashboard} />
+        <Route path='/app/activity' component={Dashboard} />
         <Route path='/app/schedules' component={Schedules} />
         <Route path='/app/schedules/create' component={CreateSchedule} />
         <Route path='/app/schedules/:scheduleName' component={Schedule} />

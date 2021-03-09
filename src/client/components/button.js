@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { Link } from 'wouter';
 
 import styled from 'styled-components';
 
@@ -15,9 +16,21 @@ const Button = () => <button></button>;
 export const StyledButton = styled(Button)`
 `;
 
-export const LinkButton = styled.a`
+export const LinkButtonDefault = ({ className, children, href }) => (
+  <Link href={href}>
+    <button className={className}>
+      {children}
+    </button>
+  </Link>
+);
 
-`;
+LinkButtonDefault.propTypes = {
+  className: PropTypes.string,
+  children: PropTypes.node,
+  context: PropTypes.oneOf(Object.keys(colors)),
+  href: PropTypes.string,
+  inverted: PropTypes.bool,
+};
 
 const FormButtonDefault = (props) => {
   return (<button
@@ -58,7 +71,7 @@ export const FormButton = styled(FormButtonDefault)`
   color: ${({ context, inverted }) => inverted ? colors[context] : '#FFF'};
 
   border-color: ${({ context, inverted }) => inverted ? colors[context] : 'transparent'};
-  border-radius: 8px;
+  border-radius: 2px;
   border-width: 2px;
   border-style: solid;
 
@@ -70,4 +83,36 @@ export const FormButton = styled(FormButtonDefault)`
   text-align: center;
   line-height: 1.1;
   font-size: 16px;
+`;
+
+export const LinkButton = styled(LinkButtonDefault)`
+  box-sizing: border-box;
+  font-family: inherit;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+
+  background-color: ${({ context, inverted }) => inverted ? 'transparent' : colors[context]};
+  color: ${({ context, inverted }) => inverted ? colors[context] : '#FFF'};
+
+  border-color: ${({ context, inverted }) => inverted ? colors[context] : 'transparent'};
+  border-radius: 2px;
+  border-width: 2px;
+  border-style: solid;
+
+  padding: 0.25em 0.75em;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0 4px;
+
+  text-align: center;
+  line-height: 1.1;
+  font-size: 16px;
+
+  > a {
+    color: ${({ context, inverted }) => inverted ? colors[context] : '#FFF'};
+  }
 `;

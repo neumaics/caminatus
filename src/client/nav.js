@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { Link, useRoute } from 'wouter';
 import { StatusBar } from './status';
+import * as Icons from './components/icons';
 
 // TODO: use theme to pull colors...?
 const NavBar = styled.nav`
@@ -50,6 +51,8 @@ NavBarLink.propTypes = {
 export const Nav = () => (
   <NavBar>
     <StatusBar></StatusBar>
-    <NavBarLink href='/app/schedules'>Schedules</NavBarLink>
-    <NavBarLink href='/app/settings'>Settings</NavBarLink>
-  </NavBar>);
+    <NavBarLink href='/app/activity'><Icons.Activity /></NavBarLink>
+    <NavBarLink href='/app/schedules'><Icons.Box /></NavBarLink>
+    <NavBarLink href='/app/settings'><Icons.Sliders /></NavBarLink>
+  </NavBar>
+);

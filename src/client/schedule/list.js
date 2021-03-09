@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link } from 'wouter';
 
+import { LinkButton } from '../components/button';
+import * as Icons from '../components/icons';
+
 const ScheduleListContainer = styled.div`
   display: grid;
-  grid-template-rows: 2em auto;
+  grid-template-rows: 3em auto;
   width: 100%;
 `;
 
@@ -55,8 +58,8 @@ export const Schedules = () => {
   return (
     <ScheduleListContainer>
       <ScheduleMenu>
-        <button><Link href='/app'>back</Link></button>
-        <button><Link href='/app/schedules/create'>+</Link></button>
+        <LinkButton context='default' href='/app/activity'><Icons.ArrowLeft /></LinkButton>
+        <LinkButton context='default' href='/app/schedules/create'><Icons.FilePlus /></LinkButton>
       </ScheduleMenu>
       <ScheduleGrid>
         {scheduleItems}
