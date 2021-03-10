@@ -37,33 +37,6 @@ export const rateToSeconds = (step) => {
   return time;
 };
 
-/**
- * Maps a schedule to a x/y axis datapoint form.
- * 
- * @fixme this is super inefficient.
- * @param {*} schedule 
- */
-const toGraph = (schedule) => {
-  const { norm } = schedule.steps.reduce((acc, step) =>{
-    const endTime = step.duration ? durationToSeconds(step.duration) : rateToSeconds(step);
-
-    if (acc.norm.find((s) => s.time === acc.time) === undefined) {
-      acc.norm.push({ time: acc.time, temp: step.start_temperature});
-    }
-    
-    if (acc.norm.find((s) => s.time === endTime) === undefined) {
-      acc.norm.push({ time: acc.time + endTime, temp: step.end_temperature });
-    }
-
-    return {
-      ...acc,
-      time: acc.time + endTime
-    };
-  }, { norm: [], time: 0 });
-
-  return norm;
-};
-
 export const toServiceSchema = (clientSchedule) => {
   const service = {
     name: clientSchedule.name,
@@ -72,30 +45,16 @@ export const toServiceSchema = (clientSchedule) => {
     steps: [],
   };
 
-  clientSchedule.steps.reduce((acc, step) => {
-    const s = {
-      description: step.description || '',
-      start_temperature: parseFloat(step.startTemperature),
-      end_temperature: parseFloat(step.endTemperature),
-      rate: null,
-      duration: null,
-    };
-
-    if (step.type === STEP_TYPE.DURATION) {
-      s.rate = { unit: step.unit, value: parseInt(step.stepValue, 10) };
-    } else if (step.type === STEP_TYPE.RATE) {
-      s.duration = { unit: step.unit, value: parseInt(step.stepValue, 10) };
-    }
-    
-    acc.push(s);
+  service.steps = clientSchedule.steps.reduce((acc, step) => {
+    acc.push(step.text);
     return acc;
-  }, service.steps);
+  }, []);
 
   return service;
 };
 
 export const save = (schedule) => 
-  fetch(`http://${location.host}:8080/schedules`, {
+  fetch(`http://${location.host}/schedules`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

@@ -10,7 +10,6 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task;
 use tokio::time::sleep;
 use tracing::{error, info, instrument, trace, warn};
-use uuid::Uuid;
 
 mod controller;
 
@@ -60,7 +59,6 @@ pub struct KilnUpdate {
 ///
 #[derive(Debug)]
 pub struct Kiln {
-    pub id: Uuid,
     pub state: KilnState,
     thermocouple_address: u16, // 0x60
     heater_pin: u8,

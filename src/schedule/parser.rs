@@ -8,7 +8,6 @@ use pest::Parser;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
-use uuid::Uuid;
 
 use super::error::ScheduleError;
 
