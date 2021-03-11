@@ -7,10 +7,11 @@ import { Dashboard } from './dashboard';
 import { Schedules, Schedule, CreateSchedule } from './schedule';
 import { Nav } from './nav';
 import { Settings } from './settings';
+import { StatusBar } from './status';
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: 140px auto;
+  grid-template-columns: 60px 80px auto;
   grid-template-rows: 100%;
   height: 100vh;
   width: 100vw;
@@ -26,6 +27,7 @@ const Content = styled.div`
 export const App = () => (<Container>
   <SeverEventsProvider>
     <Nav />
+    <StatusBar />
     <Content>
       <Switch>
         <Route path='/' component={Dashboard} />

@@ -2,7 +2,6 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { Link, useRoute } from 'wouter';
-import { StatusBar } from './status';
 import * as Icons from './components/icons';
 
 // TODO: use theme to pull colors...?
@@ -13,7 +12,7 @@ const NavBar = styled.nav`
   align-items: flex-end;
   justify-content: center;
   list-style-type: none;
-  width: 140px;
+  width: 60px;
   height: 100%;
 
   padding: 0;
@@ -29,7 +28,7 @@ const NavLink = styled.a`
   text-align: right;
   text-decoration: none;
   font-size: 18px;
-  width: 140px;
+  width: 60px;
 `;
 
 const NavBarLink = (props) => {
@@ -50,7 +49,6 @@ NavBarLink.propTypes = {
 
 export const Nav = () => (
   <NavBar>
-    <StatusBar></StatusBar>
     <NavBarLink href='/app/activity'><Icons.Activity /></NavBarLink>
     <NavBarLink href='/app/schedules'><Icons.Box /></NavBarLink>
     <NavBarLink href='/app/settings'><Icons.Sliders /></NavBarLink>

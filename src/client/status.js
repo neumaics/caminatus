@@ -7,7 +7,7 @@ const Readout = styled.a`
   font-family: 'IBM Plex Mono', sans-serif;
 `;
 
-export const StatusBar = () => {
+const StatusBarDefault = () => {
   const [temp, setTemp] = useState(0.0.toFixed(2));
   const [setPoint, setSetPoint] = useState(0.0.toFixed(2));
   const [state, setState] = useState('Idle');
@@ -25,13 +25,28 @@ export const StatusBar = () => {
   }, [c]);
 
   return (
-    <>
-      {/* {clientId} */}
+    <div>
       <a>temperature</a>
       <Readout>{temp}°C</Readout>
       <a>set point</a>
       <Readout>{setPoint}°C</Readout>
       <Readout>{state}</Readout>
-    </>
+    </div>
   );
 };
+
+export const StatusBar = styled(StatusBarDefault)`
+  background-color: #2C3033;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  list-style-type: none;
+  width: 60px;
+  height: 100%;
+
+  padding: 0;
+  margin: 0;
+
+  grid-column: 2 / 2;
+`;
