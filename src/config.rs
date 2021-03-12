@@ -143,7 +143,7 @@ fn validate_directory(dir: String) -> Result<String, ConfigError> {
 #[derive(Debug)]
 pub enum ConfigError {
     FileError(String),
-    ParseError,
+    ParseError(String),
     InvalidScheduleFolder(String),
 }
 
@@ -153,7 +153,7 @@ impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ConfigError::FileError(src) => write!(f, "Error reading config file: {}", src),
-            ConfigError::ParseError => write!(f, "Parse Error"),
+            ConfigError::ParseError(src) => write!(f, "Config parsing error: {}", src),
             ConfigError::InvalidScheduleFolder(folder) => {
                 write!(f, "Invalid schedules folder provided {}", folder)
             }
@@ -202,13 +202,13 @@ impl From<std::io::Error> for ConfigError {
 }
 
 impl From<serde_yaml::Error> for ConfigError {
-    fn from(_: serde_yaml::Error) -> Self {
-        ConfigError::ParseError
+    fn from(error: serde_yaml::Error) -> Self {
+        ConfigError::ParseError(format!("yaml error: [{}]", error))
     }
 }
 
 impl From<std::net::AddrParseError> for ConfigError {
-    fn from(_: std::net::AddrParseError) -> Self {
-        ConfigError::ParseError // TODO: specify that the IP was not parsed.
+    fn from(error: std::net::AddrParseError) -> Self {
+        ConfigError::ParseError(format!("ip parsing error: [{}]", error))
     }
 }

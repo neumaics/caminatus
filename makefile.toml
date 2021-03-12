@@ -79,8 +79,6 @@ script = '''
 rm -r ./target/${TARGET}/package
 rm -r ./target/caminatus-${NAME}-${VERSION}.tar.gz
 
-# todo: remove the below line, packaging files with binary in compile step
-cp ./public ./target/${TARGET}/package/caminatus-${VERSION}
 cp ./target/${TARGET}/release/caminatus ./target/${TARGET}/package/caminatus-${VERSION}/caminatus
 cp ./config.yaml.example ./target/${TARGET}/package/caminatus-${VERSION}/config.yaml
 

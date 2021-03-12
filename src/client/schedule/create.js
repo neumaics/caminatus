@@ -101,9 +101,6 @@ const StepContainer = styled.div`
   }
 `;
 
-/**
- * @todo add configurable max temperature.
- */
 export const CreateSchedule = () => {
   const initialState = new Schedule();
   initialState.steps.push({ text: '' });

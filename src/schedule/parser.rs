@@ -128,10 +128,7 @@ fn hold_from_parsed(
     let mut time = 0.0;
     let mut unit = TimeUnit::Seconds;
 
-    let prev: NormalizedStep = match previous_step {
-        Some(s) => s,
-        None => Default::default(),
-    };
+    let prev = previous_step.unwrap_or(NormalizedStep::default());
 
     for r in pairs {
         match r.as_rule() {
@@ -410,21 +407,25 @@ impl Schedule {
         Ok(id.to_string())
     }
 
-    /// todo: update filename when name is updated
     pub fn update(
         id: String,
         schedule: Schedule,
         schedule_directory: &String,
     ) -> Result<String, ScheduleError> {
         Schedule::validate(&schedule)?;
-        let mut file = File::create(format!(
-            "{}/{}.yaml",
-            schedule_directory,
-            id.to_string().as_str()
-        ))?;
+        let new_name = Schedule::to_filename(&schedule.name)?;
+
+        let old_location = format!("{}/{}.yaml", &schedule_directory, &id);
+        let new_location = format!("{}/{}.yaml", &schedule_directory, &new_name);
+
+        let mut file = File::create(&old_location)?;
         let schedule_string: String = serde_yaml::to_string(&schedule)?;
 
         file.write_all(schedule_string.as_bytes())?;
+
+        if new_location != old_location {
+            fs::rename(old_location, new_location)?;
+        }
 
         Ok(id)
     }
