@@ -5,13 +5,16 @@ Raspberry Pi Kiln Controller
 
 **Warning**: this system not yet been tested on a real kiln/oven/furnace. If you somehow manage
 to get it working in its current state, you use at your own risk! Not intended for exposure to the
-public internet.
+public internet, for reasons that I hope are obvious.
 
 ## Purpose
-Caminatus can be used to control kilns and furnaces.
+Caminatus can be used to control kilns and furnaces. It was originally made to test different
+control theory algorithms, but now only, reliably, incorporates PID control. Eventually fuzzy
+logic, and other algorithms may be incorporated.
+
 
 ## Setup
-TBD
+See setup for jbruce12000/kiln-controller for a similar direction for Caminatus.
 
 ## Running
 ```bash
@@ -20,14 +23,21 @@ TBD
 
 ```
 
+Where
+
+`--config-file` - a path to a config yaml. An example can be found at 
+`./config.yaml.example`
+
+`--schedules-folder` - a path to the folder where schedules are managed
+
 ## Development
 Requirements:
 * Rust 1.47.0+
 * Nodejs v14+
 
 This was developed primarily with the vs-code remote container and docker.
-The ./.devcontainer/dockerfile was modified from the rust devcontainer. It includes node/npm,
-rust/cargo, fish and other utilties.
+The ./.devcontainer/dockerfile was modified from the [rust devcontainer](https://github.com/microsoft/vscode-remote-try-rust). It includes node/npm,
+rust/cargo, fish and other utilties to aid in making and testing changes.
 
 ### Packaging for the Raspberry Pi
 Requirements:
